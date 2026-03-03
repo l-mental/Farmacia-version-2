@@ -98,30 +98,47 @@ const PosSystem: React.FC<PosSystemProps> = ({ medications, customers, onComplet
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6 pb-24 lg:pb-6">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4 md:gap-6 pb-24 lg:pb-6">
           {filteredMeds.map(med => (
-            <div key={med.id} className="bg-white rounded-2xl md:rounded-3xl p-4 md:p-5 border border-slate-200 shadow-sm hover:shadow-xl transition-all">
-              <div className="flex justify-between items-start mb-3">
-                <div className="px-2 py-0.5 bg-slate-100 rounded-full text-[9px] font-bold text-slate-500 uppercase">{med.laboratory}</div>
-                {med.isControlled && <div className="px-2 py-0.5 bg-rose-100 text-rose-600 rounded-full text-[9px] font-black uppercase flex items-center gap-1"><AlertCircle className="w-2.5 h-2.5"/> Controlado</div>}
+            <div key={med.id} className="group bg-white rounded-[2rem] p-5 border border-slate-200 shadow-sm hover:shadow-xl hover:border-emerald-500/30 transition-all duration-300 flex flex-col h-fit">
+              <div className="flex justify-between items-start mb-4">
+                <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-[8px] font-black text-slate-500 uppercase tracking-wider">{med.laboratory}</span>
+                {med.isControlled && (
+                  <span className="px-2 py-1 bg-rose-50 text-rose-600 rounded-lg text-[8px] font-black uppercase flex items-center gap-1 animate-pulse">
+                    <AlertCircle className="w-3 h-3"/> Controlado
+                  </span>
+                )}
               </div>
-              <h3 className="text-lg md:text-xl font-black text-slate-800 leading-tight mb-1">{med.name}</h3>
-              <p className="text-xs text-slate-400 font-medium mb-4 italic">{med.genericName}</p>
               
-              <div className="space-y-2 md:space-y-3">
+              <div className="flex-1 mb-6">
+                <h3 className="text-lg font-black text-slate-800 leading-tight group-hover:text-emerald-600 transition-colors">{med.name}</h3>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight mt-1">{med.genericName}</p>
+                
+                <div className="mt-4 flex items-center gap-2">
+                  <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full rounded-full ${med.stockBoxes < 10 ? 'bg-rose-500' : 'bg-emerald-500'}`}
+                      style={{ width: `${Math.min(100, (med.stockBoxes / 50) * 100)}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-[9px] font-black text-slate-400 uppercase">{med.stockBoxes} Stock</span>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3">
                 <button 
                   onClick={() => addToCart(med, false)}
-                  className="w-full flex justify-between items-center p-2.5 md:p-3 bg-emerald-50 rounded-xl md:rounded-2xl hover:bg-emerald-100 transition-colors"
+                  className="flex flex-col items-center justify-center p-3 bg-emerald-50 border border-emerald-100 rounded-2xl hover:bg-emerald-600 hover:text-white transition-all group/btn"
                 >
-                  <span className="text-xs font-bold text-emerald-700">Caja</span>
-                  <span className="font-black text-emerald-800 text-sm md:text-base">{currencySymbol}{med.priceBox}</span>
+                  <span className="text-[8px] font-black uppercase tracking-widest mb-1 opacity-60 group-hover/btn:opacity-100">Caja</span>
+                  <span className="font-black text-sm">{currencySymbol}{med.priceBox}</span>
                 </button>
                 <button 
                   onClick={() => addToCart(med, true)}
-                  className="w-full flex justify-between items-center p-2.5 md:p-3 bg-blue-50 rounded-xl md:rounded-2xl hover:bg-blue-100 transition-colors"
+                  className="flex flex-col items-center justify-center p-3 bg-blue-50 border border-blue-100 rounded-2xl hover:bg-blue-600 hover:text-white transition-all group/btn"
                 >
-                  <span className="text-xs font-bold text-blue-700">Unidad</span>
-                  <span className="font-black text-blue-800 text-sm md:text-base">{currencySymbol}{med.priceUnit}</span>
+                  <span className="text-[8px] font-black uppercase tracking-widest mb-1 opacity-60 group-hover/btn:opacity-100">Unidad</span>
+                  <span className="font-black text-sm">{currencySymbol}{med.priceUnit}</span>
                 </button>
               </div>
             </div>
