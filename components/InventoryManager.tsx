@@ -13,9 +13,10 @@ interface InventoryManagerProps {
   onAdd: (med: Medication) => void;
   onUpdate: (med: Medication) => void;
   onDelete: (id: string) => void;
+  currencySymbol: string;
 }
 
-const InventoryManager: React.FC<InventoryManagerProps> = ({ medications, onAdd, onUpdate, onDelete }) => {
+const InventoryManager: React.FC<InventoryManagerProps> = ({ medications, onAdd, onUpdate, onDelete, currencySymbol }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMed, setEditingMed] = useState<Medication | null>(null);
@@ -123,7 +124,7 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({ medications, onAdd,
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 w-full flex-1 border-t md:border-t-0 pt-4 md:pt-0">
                 <div className="flex flex-col">
                   <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-0.5 md:mb-1">Precio Unit</span>
-                  <span className="text-sm md:text-base font-black text-slate-800">${med.priceUnit}</span>
+                  <span className="text-sm md:text-base font-black text-slate-800">{currencySymbol}{med.priceUnit}</span>
                 </div>
                 <div className="flex flex-col">
                   <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-0.5 md:mb-1">Existencia</span>
@@ -185,6 +186,51 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({ medications, onAdd,
                     <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value as Category})} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-medium">
                       {Object.values(Category).map(cat => <option key={cat} value={cat}>{cat}</option>)}
                     </select>
+                  </div>
+                  <div className="flex flex-col gap-1 md:col-span-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Imagen del Medicamento</label>
+                    <div className="flex gap-4 items-center">
+                      <div className="w-20 h-20 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-center overflow-hidden shrink-0">
+                        {formData.imageUrl ? (
+                          <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                        ) : (
+                          <ImageIcon className="text-slate-300 w-8 h-8" />
+                        )}
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <input 
+                          type="text" 
+                          placeholder="URL de la imagen..." 
+                          value={formData.imageUrl}
+                          onChange={v => setFormData({...formData, imageUrl: v.target.value})}
+                          className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none text-xs font-medium"
+                        />
+                        <div className="relative">
+                          <input 
+                            type="file" 
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  setFormData({...formData, imageUrl: reader.result as string});
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                            className="hidden" 
+                            id="image-upload"
+                          />
+                          <label 
+                            htmlFor="image-upload"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-xs font-black uppercase tracking-widest cursor-pointer hover:bg-emerald-100 transition-colors"
+                          >
+                            <ImageIcon className="w-4 h-4" /> Cargar Imagen Local
+                          </label>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 

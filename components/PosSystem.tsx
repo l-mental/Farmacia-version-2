@@ -1,20 +1,30 @@
 
 import React, { useState, useMemo } from 'react';
 import { Search, ShoppingBag, Plus, Minus, Trash2, CheckCircle2, User, FileText, AlertCircle, ShieldCheck, X, ChevronUp } from 'lucide-react';
-import { Medication, SaleItem, InsurancePlan, PrescriptionData } from '../types';
+import { Medication, SaleItem, InsurancePlan, PrescriptionData, Customer } from '../types';
 import { INSURANCE_PLANS } from '../constants';
 
 interface PosSystemProps {
   medications: Medication[];
-  onCompleteSale: (items: SaleItem[], insurance: InsurancePlan, prescription?: PrescriptionData) => void;
+  customers: Customer[];
+  onCompleteSale: (items: SaleItem[], insurance: InsurancePlan, customer?: Customer, prescription?: PrescriptionData) => void;
+  onAddPatient: (patient: Customer) => void;
+  currencySymbol: string;
 }
 
-const PosSystem: React.FC<PosSystemProps> = ({ medications, onCompleteSale }) => {
+const PosSystem: React.FC<PosSystemProps> = ({ medications, customers, onCompleteSale, onAddPatient, currencySymbol }) => {
   const [cart, setCart] = useState<SaleItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedInsurance, setSelectedInsurance] = useState<InsurancePlan>(INSURANCE_PLANS[0]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [prescription, setPrescription] = useState<PrescriptionData>({ doctorLicense: '', patientName: '', date: new Date().toISOString().split('T')[0] });
   const [isCartMobileOpen, setIsCartMobileOpen] = useState(false);
+  const [isCustomerSearchOpen, setIsCustomerSearchOpen] = useState(false);
+  const [isNewPatientModalOpen, setIsNewPatientModalOpen] = useState(false);
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  const [newPatientData, setNewPatientData] = useState({ name: '', dni: '' });
 
   const filteredMeds = medications.filter(m => 
     m.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -58,10 +68,17 @@ const PosSystem: React.FC<PosSystemProps> = ({ medications, onCompleteSale }) =>
       alert("Atención: Venta bloqueada. Se requiere completar los datos de la receta para medicamentos controlados.");
       return;
     }
-    onCompleteSale(cart, selectedInsurance, needsPrescription ? prescription : undefined);
+    onCompleteSale(cart, selectedInsurance, selectedCustomer || undefined, needsPrescription ? prescription : undefined);
+    
+    // Clear state and close cart
     setCart([]);
     setPrescription({ doctorLicense: '', patientName: '', date: '' });
+    setSelectedCustomer(null);
     setIsCartMobileOpen(false);
+    
+    // Show success message
+    setShowSuccess(true);
+    setTimeout(() => setShowSuccess(false), 4000);
   };
 
   return (
@@ -97,14 +114,14 @@ const PosSystem: React.FC<PosSystemProps> = ({ medications, onCompleteSale }) =>
                   className="w-full flex justify-between items-center p-2.5 md:p-3 bg-emerald-50 rounded-xl md:rounded-2xl hover:bg-emerald-100 transition-colors"
                 >
                   <span className="text-xs font-bold text-emerald-700">Caja</span>
-                  <span className="font-black text-emerald-800 text-sm md:text-base">${med.priceBox}</span>
+                  <span className="font-black text-emerald-800 text-sm md:text-base">{currencySymbol}{med.priceBox}</span>
                 </button>
                 <button 
                   onClick={() => addToCart(med, true)}
                   className="w-full flex justify-between items-center p-2.5 md:p-3 bg-blue-50 rounded-xl md:rounded-2xl hover:bg-blue-100 transition-colors"
                 >
                   <span className="text-xs font-bold text-blue-700">Unidad</span>
-                  <span className="font-black text-blue-800 text-sm md:text-base">${med.priceUnit}</span>
+                  <span className="font-black text-blue-800 text-sm md:text-base">{currencySymbol}{med.priceUnit}</span>
                 </button>
               </div>
             </div>
@@ -112,30 +129,84 @@ const PosSystem: React.FC<PosSystemProps> = ({ medications, onCompleteSale }) =>
         </div>
       </div>
 
-      {/* Panel de Venta / Resumen - Desktop Sidebar / Mobile Drawer */}
+      {/* Panel de Venta / Resumen - Desktop & Tablet Sidebar / Mobile Drawer */}
       <div className={`
-        fixed lg:relative inset-x-0 bottom-0 lg:inset-auto z-[80] lg:z-10
-        w-full lg:w-[400px] bg-white border-l border-slate-200 flex flex-col shadow-2xl transition-transform duration-300 transform
-        ${isCartMobileOpen ? 'translate-y-0 h-[80vh]' : 'translate-y-full h-0 lg:translate-y-0 lg:h-full'}
+        fixed md:relative inset-x-0 bottom-0 md:inset-auto z-[80] md:z-10
+        w-full md:w-[320px] lg:w-[400px] bg-white border-l border-slate-200 flex flex-col shadow-2xl transition-transform duration-300 transform
+        ${isCartMobileOpen ? 'translate-y-0 h-[85vh]' : 'translate-y-full h-0 md:translate-y-0 md:h-full'}
       `}>
         <div className="p-4 md:p-6 bg-slate-900 text-white shrink-0 flex justify-between items-center">
           <h2 className="text-lg md:text-xl font-black flex items-center gap-2">
             <ShoppingBag className="text-emerald-400 w-5 h-5 md:w-6 md:h-6"/> 
-            Resumen de Venta
+            Resumen
           </h2>
-          <button onClick={() => setIsCartMobileOpen(false)} className="lg:hidden p-2 hover:bg-white/10 rounded-full">
+          <button onClick={() => setIsCartMobileOpen(false)} className="md:hidden p-2 hover:bg-white/10 rounded-full">
             <X className="w-6 h-6" />
           </button>
         </div>
 
-        {/* Configuración de Seguro */}
-        <div className="p-3 md:p-4 bg-slate-50 border-b border-slate-200 overflow-x-auto scrollbar-hide">
-          <div className="flex gap-2 min-w-max lg:min-w-0 lg:flex-wrap">
+        {/* Configuración de Seguro y Paciente */}
+        <div className="p-4 bg-slate-50 border-b border-slate-200 space-y-4">
+          <div className="relative">
+            <button 
+              onClick={() => setIsCustomerSearchOpen(!isCustomerSearchOpen)}
+              className="w-full flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all"
+            >
+              <div className="flex items-center gap-3">
+                <User className={`w-5 h-5 ${selectedCustomer ? 'text-emerald-500' : 'text-slate-400'}`} />
+                <div className="text-left">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Paciente</p>
+                  <p className="text-xs font-bold text-slate-800">{selectedCustomer ? selectedCustomer.name : 'Venta General'}</p>
+                </div>
+              </div>
+              {selectedCustomer && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+            </button>
+
+            {isCustomerSearchOpen && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl z-[90] overflow-hidden animate-in fade-in slide-in-from-top-2">
+                <div className="p-3 border-b border-slate-100 flex gap-2">
+                  <input 
+                    type="text" 
+                    placeholder="Buscar paciente..." 
+                    value={customerSearchTerm}
+                    onChange={(e) => setCustomerSearchTerm(e.target.value)}
+                    className="flex-1 p-2 bg-slate-50 border border-slate-100 rounded-lg text-xs outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                  <button 
+                    onClick={() => { setIsNewPatientModalOpen(true); setIsCustomerSearchOpen(false); }}
+                    className="p-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="max-h-48 overflow-y-auto">
+                  <button 
+                    onClick={() => { setSelectedCustomer(null); setIsCustomerSearchOpen(false); }}
+                    className="w-full p-3 text-left text-xs font-bold text-slate-500 hover:bg-slate-50 border-b border-slate-50"
+                  >
+                    Venta General
+                  </button>
+                  {customers.filter(c => c.name.toLowerCase().includes(customerSearchTerm.toLowerCase()) || c.dni.includes(customerSearchTerm)).map(c => (
+                    <button 
+                      key={c.id}
+                      onClick={() => { setSelectedCustomer(c); setIsCustomerSearchOpen(false); }}
+                      className="w-full p-3 text-left hover:bg-emerald-50 transition-colors border-b border-slate-50"
+                    >
+                      <p className="text-xs font-bold text-slate-800">{c.name}</p>
+                      <p className="text-[10px] text-slate-400 font-medium">DNI: {c.dni}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
             {INSURANCE_PLANS.map(plan => (
               <button
                 key={plan.id}
                 onClick={() => setSelectedInsurance(plan)}
-                className={`px-3 py-1.5 md:py-2 rounded-xl text-[10px] md:text-xs font-bold transition-all whitespace-nowrap ${selectedInsurance.id === plan.id ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30' : 'bg-white text-slate-500 border border-slate-200'}`}
+                className={`px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all whitespace-nowrap ${selectedInsurance.id === plan.id ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30' : 'bg-white text-slate-500 border border-slate-200'}`}
               >
                 {plan.name}
               </button>
@@ -156,7 +227,7 @@ const PosSystem: React.FC<PosSystemProps> = ({ medications, onCompleteSale }) =>
                 <button onClick={() => removeFromCart(i)} className="absolute -top-1 -right-1 bg-rose-500 text-white p-1 rounded-full"><Trash2 className="w-3 h-3"/></button>
                 <div className="flex justify-between items-start mb-1">
                   <h4 className="font-bold text-slate-800 text-xs md:text-sm truncate pr-4">{item.medication.name}</h4>
-                  <span className="font-black text-slate-900 text-xs md:text-sm shrink-0">${item.subtotal}</span>
+                  <span className="font-black text-slate-900 text-xs md:text-sm shrink-0">{currencySymbol}{item.subtotal}</span>
                 </div>
                 <div className="flex items-center justify-between text-[10px]">
                   <span className="text-slate-400 font-medium">{item.isFractional ? '1 Unidad' : '1 Caja'}</span>
@@ -171,15 +242,15 @@ const PosSystem: React.FC<PosSystemProps> = ({ medications, onCompleteSale }) =>
         <div className="p-4 md:p-6 bg-slate-50 border-t border-slate-200 space-y-2 md:space-y-3">
           <div className="flex justify-between text-[10px] md:text-xs font-bold text-slate-400">
             <span>Subtotal</span>
-            <span>${subtotal.toFixed(2)}</span>
+            <span>{currencySymbol}{subtotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-[10px] md:text-xs font-bold text-emerald-600">
             <span>Dto. {selectedInsurance.name}</span>
-            <span>- ${discount.toFixed(2)}</span>
+            <span>- {currencySymbol}{discount.toFixed(2)}</span>
           </div>
           <div className="flex justify-between items-end py-1">
             <span className="text-slate-900 font-black text-sm md:text-lg">TOTAL</span>
-            <span className="text-2xl md:text-3xl font-black text-emerald-700">${total.toFixed(2)}</span>
+            <span className="text-2xl md:text-3xl font-black text-emerald-700">{currencySymbol}{total.toFixed(2)}</span>
           </div>
           <button 
             onClick={handleComplete}
@@ -195,15 +266,83 @@ const PosSystem: React.FC<PosSystemProps> = ({ medications, onCompleteSale }) =>
       {!isCartMobileOpen && cart.length > 0 && (
         <button 
           onClick={() => setIsCartMobileOpen(true)}
-          className="lg:hidden fixed bottom-24 left-1/2 -translate-x-1/2 z-[75] bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-10"
+          className="md:hidden fixed bottom-24 left-1/2 -translate-x-1/2 z-[75] bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-10"
         >
           <div className="bg-emerald-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center">
             {cart.length}
           </div>
           <span className="text-sm font-bold">Ver Carrito</span>
-          <span className="text-emerald-400 font-black">${total.toFixed(0)}</span>
+          <span className="text-emerald-400 font-black">{currencySymbol}{total.toFixed(0)}</span>
           <ChevronUp className="w-4 h-4" />
         </button>
+      )}
+
+      {/* Quick New Patient Modal */}
+      {isNewPatientModalOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-sm rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 bg-emerald-600 text-white flex justify-between items-center">
+              <h2 className="text-xl font-black">Rápido: Nuevo Paciente</h2>
+              <button onClick={() => setIsNewPatientModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                const patient: Customer = {
+                  id: `C${Date.now()}`,
+                  name: newPatientData.name,
+                  dni: newPatientData.dni,
+                  insuranceId: 'PART',
+                  history: []
+                };
+                onAddPatient(patient);
+                setSelectedCustomer(patient);
+                setIsNewPatientModalOpen(false);
+                setNewPatientData({ name: '', dni: '' });
+              }}
+              className="p-6 space-y-4"
+            >
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nombre</label>
+                <input 
+                  type="text" required
+                  value={newPatientData.name}
+                  onChange={e => setNewPatientData({...newPatientData, name: e.target.value})}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-medium"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">DNI</label>
+                <input 
+                  type="text" required
+                  value={newPatientData.dni}
+                  onChange={e => setNewPatientData({...newPatientData, dni: e.target.value})}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-medium"
+                />
+              </div>
+              <button type="submit" className="w-full py-4 bg-emerald-600 text-white font-black rounded-2xl shadow-xl shadow-emerald-600/30 text-sm uppercase tracking-widest">
+                Registrar y Seleccionar
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Success Notification */}
+      {showSuccess && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[300] w-[90%] max-w-sm animate-in slide-in-from-top-10 duration-500">
+          <div className="bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-emerald-500/30 flex items-center gap-4">
+            <div className="bg-emerald-500 p-2 rounded-xl">
+              <CheckCircle2 className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <p className="font-black text-sm">¡Venta Confirmada!</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">El registro se ha guardado correctamente</p>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

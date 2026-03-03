@@ -1,7 +1,10 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, X, Sparkles, Loader2, Stethoscope } from 'lucide-react';
-import { getGeminiHealthAdvice } from '../services/geminiService';
+import { Send, Bot, User, X, Sparkles, Loader2, BarChart3 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { getSystemAssistantResponse } from '../services/geminiService';
+import { Medication, SaleRecord, Customer, User as SystemUser } from '../types';
 
 interface Message {
   role: 'bot' | 'user';
@@ -10,11 +13,15 @@ interface Message {
 
 interface AIConsultantProps {
   onClose: () => void;
+  medications: Medication[];
+  sales: SaleRecord[];
+  customers: Customer[];
+  currentUser: SystemUser;
 }
 
-const AIConsultant: React.FC<AIConsultantProps> = ({ onClose }) => {
+const AIConsultant: React.FC<AIConsultantProps> = ({ onClose, medications, sales, customers, currentUser }) => {
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'bot', content: '¡Hola! Soy tu asistente farmacéutico inteligente. ¿En qué puedo ayudarte hoy? Puedes preguntarme sobre dosis, efectos secundarios o recomendaciones generales.' }
+    { role: 'bot', content: `¡Hola ${currentUser.name}! Soy el Asistente de FarmaSalud ERP. Tengo acceso a los datos de inventario, ventas y clientes. ¿En qué puedo ayudarte con la gestión de la farmacia hoy?` }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -34,7 +41,14 @@ const AIConsultant: React.FC<AIConsultantProps> = ({ onClose }) => {
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     setIsLoading(true);
 
-    const botResponse = await getGeminiHealthAdvice(userMsg);
+    const systemData = {
+      inventory: medications.map(m => ({ name: m.name, stock: m.stockBoxes, price: m.priceBox, controlled: m.isControlled })),
+      sales: sales.map(s => ({ id: s.id, total: s.total, customer: s.customerName, date: s.timestamp, itemsCount: s.items.length })),
+      customersCount: customers.length,
+      currentUser: { name: currentUser.name, role: currentUser.role }
+    };
+
+    const botResponse = await getSystemAssistantResponse(userMsg, systemData);
     setMessages(prev => [...prev, { role: 'bot', content: botResponse }]);
     setIsLoading(false);
   };
@@ -76,11 +90,17 @@ const AIConsultant: React.FC<AIConsultantProps> = ({ onClose }) => {
                   ? 'bg-emerald-600 text-white rounded-tr-none' 
                   : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none'
               }`}>
-                {msg.content}
+                {msg.role === 'user' ? (
+                  msg.content
+                ) : (
+                  <div className="markdown-body prose prose-sm max-w-none prose-emerald">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                  </div>
+                )}
                 {msg.role === 'bot' && (
                   <div className="mt-2 pt-2 border-t border-slate-100 flex items-center gap-1.5 text-[10px] text-slate-400 italic">
-                    <Stethoscope className="w-3 h-3" />
-                    No sustituye consejo médico profesional.
+                    <BarChart3 className="w-3 h-3" />
+                    Información basada en datos del sistema.
                   </div>
                 )}
               </div>
@@ -93,7 +113,7 @@ const AIConsultant: React.FC<AIConsultantProps> = ({ onClose }) => {
               </div>
               <div className="bg-white border border-slate-100 p-4 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
                 <Loader2 className="w-4 h-4 text-emerald-600 animate-spin" />
-                <span className="text-sm text-slate-500">Analizando...</span>
+                <span className="text-sm text-slate-500">Analizando datos...</span>
               </div>
             </div>
           )}
@@ -107,7 +127,7 @@ const AIConsultant: React.FC<AIConsultantProps> = ({ onClose }) => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-              placeholder="Escribe tu consulta de salud aquí..."
+              placeholder="Pregunta sobre stock, ventas o rendimiento..."
               className="flex-1 px-4 py-3 bg-slate-100 border-transparent rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
             />
             <button 

@@ -1,11 +1,42 @@
 
-import { Medication, Category, InsurancePlan } from './types';
+import { Medication, Category, InsurancePlan, Customer, SaleRecord, Currency } from './types';
 
 export const INSURANCE_PLANS: InsurancePlan[] = [
   { id: 'PART', name: 'Particular (Sin Seguro)', coveragePercent: 0 },
   { id: 'OSDE', name: 'OSDE 210', coveragePercent: 40 },
   { id: 'SWISS', name: 'Swiss Medical', coveragePercent: 50 },
   { id: 'PAMI', name: 'PAMI Jubilados', coveragePercent: 80 }
+];
+
+export const SUPPORTED_CURRENCIES: Currency[] = [
+  { code: 'USD', symbol: '$', name: 'Dólar Estadounidense' },
+  { code: 'BOB', symbol: 'Bs', name: 'Boliviano' },
+  { code: 'ARS', symbol: 'ARS$', name: 'Peso Argentino' },
+  { code: 'MXN', symbol: 'MXN$', name: 'Peso Mexicano' },
+  { code: 'PEN', symbol: 'S/', name: 'Sol Peruano' },
+  { code: 'CLP', symbol: 'CLP$', name: 'Peso Chileno' },
+  { code: 'COP', symbol: 'COP$', name: 'Peso Colombiano' }
+];
+
+export const MOCK_CUSTOMERS: Customer[] = [
+  {
+    id: 'C1',
+    name: 'Juan Pérez',
+    dni: '12345678',
+    insuranceId: 'OSDE',
+    phone: '555-0101',
+    email: 'juan.perez@email.com',
+    history: ['S1']
+  },
+  {
+    id: 'C2',
+    name: 'María García',
+    dni: '87654321',
+    insuranceId: 'PAMI',
+    phone: '555-0202',
+    email: 'maria.garcia@email.com',
+    history: []
+  }
 ];
 
 export const MOCK_MEDICATIONS: Medication[] = [

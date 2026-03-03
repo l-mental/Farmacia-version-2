@@ -5,9 +5,10 @@ import { Medication } from '../types';
 
 interface DashboardProps {
   medications: Medication[];
+  currencySymbol: string;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ medications }) => {
+const Dashboard: React.FC<DashboardProps> = ({ medications, currencySymbol }) => {
   const lowStock = medications.filter(m => m.stockBoxes <= m.minStock);
   const expiringSoon = medications.filter(m => {
     const expiry = new Date(m.batches[0]?.expiryDate);
@@ -29,7 +30,7 @@ const Dashboard: React.FC<DashboardProps> = ({ medications }) => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        <StatCard title="Ventas Hoy" value="$45.2k" trend="+12%" icon={<TrendingUp />} color="emerald" />
+        <StatCard title="Ventas Hoy" value={`${currencySymbol}45.2k`} trend="+12%" icon={<TrendingUp />} color="emerald" />
         <StatCard title="Tickets" value="124" trend="+5%" icon={<Package />} color="blue" />
         <StatCard title="Alertas" value={lowStock.length.toString()} trend="Stock" icon={<AlertTriangle />} color="rose" />
         <StatCard title="Próximos" value={expiringSoon.length.toString()} trend="Venc." icon={<Calendar />} color="amber" />

@@ -16,6 +16,9 @@ export interface User {
   name: string;
   role: UserRole;
   username: string;
+  password?: string;
+  phone?: string;
+  email?: string;
 }
 
 export interface Batch {
@@ -53,7 +56,10 @@ export interface Customer {
   name: string;
   dni: string;
   insuranceId: string;
-  history: string[];
+  phone?: string;
+  email?: string;
+  address?: string;
+  history: string[]; // IDs of sales
 }
 
 export interface SaleItem {
@@ -83,7 +89,14 @@ export interface SaleRecord {
   timestamp: string;
   items: SaleItem[];
   total: number;
+  customerId?: string;
   customerName?: string;
   insuranceName: string;
   userId: string;
+}
+
+export interface Currency {
+  code: string;
+  symbol: string;
+  name: string;
 }
