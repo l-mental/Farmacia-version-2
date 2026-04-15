@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MOCK_MEDICATIONS, MOCK_CUSTOMERS, SUPPORTED_CURRENCIES } from './constants';
 import { Medication, User, SaleItem, InsurancePlan, PrescriptionData, Customer, SaleRecord, Currency } from './types';
 import Login from './components/Login';
@@ -9,24 +9,75 @@ import Dashboard from './components/Dashboard';
 import Reports from './components/Reports';
 import AIConsultant from './components/AIConsultant';
 import StaffManager from './components/StaffManager';
-import { HeartPulse, LayoutDashboard, ShoppingCart, Pill, LogOut, Bot, BarChart3, Users, Settings, Sparkles, Menu, Globe, X, UserCog } from 'lucide-react';
+import { HeartPulse, LayoutDashboard, ShoppingCart, Pill, LogOut, Bot, BarChart3, Users, Settings, Sparkles, Menu, Globe, X, UserCog, Trash2, Plus } from 'lucide-react';
 
 type TabType = 'DASHBOARD' | 'POS' | 'INVENTORY' | 'REPORTS' | 'CUSTOMERS' | 'STAFF' | 'SETTINGS';
 
 const App: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [medications, setMedications] = useState<Medication[]>(MOCK_MEDICATIONS);
-  const [customers, setCustomers] = useState<Customer[]>(MOCK_CUSTOMERS);
-  const [staff, setStaff] = useState<User[]>([
-    { id: 'U1', name: 'Admin Principal', username: 'admin', password: 'admin', phone: '999888777', role: 'ADMIN' },
-    { id: 'U2', name: 'Empleado Demo', username: 'empleado', password: '123', phone: '999000111', role: 'EMPLOYEE' }
-  ]);
-  const [sales, setSales] = useState<SaleRecord[]>([]);
-  const [currency, setCurrency] = useState<Currency>(SUPPORTED_CURRENCIES[0]);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    const saved = localStorage.getItem('FARMA_USER');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [medications, setMedications] = useState<Medication[]>(() => {
+    const saved = localStorage.getItem('FARMA_MEDS');
+    return saved ? JSON.parse(saved) : MOCK_MEDICATIONS;
+  });
+  const [customers, setCustomers] = useState<Customer[]>(() => {
+    const saved = localStorage.getItem('FARMA_CUSTOMERS');
+    return saved ? JSON.parse(saved) : MOCK_CUSTOMERS;
+  });
+  const [staff, setStaff] = useState<User[]>(() => {
+    const saved = localStorage.getItem('FARMA_STAFF');
+    return saved ? JSON.parse(saved) : [
+      { id: 'U1', name: 'Admin Principal', username: 'admin', password: 'admin', phone: '999888777', role: 'ADMIN' },
+      { id: 'U2', name: 'Empleado Demo', username: 'empleado', password: '123', phone: '999000111', role: 'EMPLOYEE' }
+    ];
+  });
+  const [sales, setSales] = useState<SaleRecord[]>(() => {
+    const saved = localStorage.getItem('FARMA_SALES');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [currency, setCurrency] = useState<Currency>(() => {
+    const saved = localStorage.getItem('FARMA_CURRENCY');
+    return saved ? JSON.parse(saved) : SUPPORTED_CURRENCIES[0];
+  });
+  const [businessQR, setBusinessQR] = useState<string | null>(() => localStorage.getItem('FARMA_QR'));
   const [isAIConsultantOpen, setIsAIConsultantOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNewPatientModalOpen, setIsNewPatientModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('DASHBOARD');
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  // Persistence Effects
+  useEffect(() => {
+    localStorage.setItem('FARMA_MEDS', JSON.stringify(medications));
+  }, [medications]);
+
+  useEffect(() => {
+    localStorage.setItem('FARMA_CUSTOMERS', JSON.stringify(customers));
+  }, [customers]);
+
+  useEffect(() => {
+    localStorage.setItem('FARMA_STAFF', JSON.stringify(staff));
+  }, [staff]);
+
+  useEffect(() => {
+    localStorage.setItem('FARMA_SALES', JSON.stringify(sales));
+  }, [sales]);
+
+  useEffect(() => {
+    localStorage.setItem('FARMA_CURRENCY', JSON.stringify(currency));
+  }, [currency]);
+
+  useEffect(() => {
+    const handleStatusChange = () => setIsOnline(navigator.onLine);
+    window.addEventListener('online', handleStatusChange);
+    window.addEventListener('offline', handleStatusChange);
+    return () => {
+      window.removeEventListener('online', handleStatusChange);
+      window.removeEventListener('offline', handleStatusChange);
+    };
+  }, []);
 
   const [newPatientData, setNewPatientData] = useState<Partial<Customer>>({
     name: '', dni: '', insuranceId: 'PART', phone: '', email: ''
@@ -34,18 +85,20 @@ const App: React.FC = () => {
 
   const handleLogin = (user: User) => {
     setCurrentUser(user);
+    localStorage.setItem('FARMA_USER', JSON.stringify(user));
     setActiveTab('DASHBOARD');
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
+    localStorage.removeItem('FARMA_USER');
   };
 
   const handleAddPatient = (patient: Customer) => {
     setCustomers(prev => [...prev, patient]);
   };
 
-  const handleCompleteSale = (items: SaleItem[], insurance: InsurancePlan, customer?: Customer, prescription?: PrescriptionData) => {
+  const handleCompleteSale = (items: SaleItem[], insurance: InsurancePlan, paymentMethod: any, customer?: Customer, prescription?: PrescriptionData): SaleRecord => {
     const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
     const discount = subtotal * (insurance.coveragePercent / 100);
     const total = subtotal - discount;
@@ -58,7 +111,8 @@ const App: React.FC = () => {
       customerId: customer?.id,
       customerName: customer?.name || 'Venta General',
       insuranceName: insurance.name,
-      userId: currentUser?.id || 'unknown'
+      userId: currentUser?.id || 'unknown',
+      paymentMethod
     };
 
     setSales(prev => [newSale, ...prev]);
@@ -88,6 +142,7 @@ const App: React.FC = () => {
       return med;
     });
     setMedications(updatedMeds);
+    return newSale;
   };
 
   if (!currentUser) {
@@ -143,9 +198,11 @@ const App: React.FC = () => {
             <h2 className="text-xs md:text-sm font-black text-slate-800 uppercase tracking-widest">{activeTab}</h2>
           </div>
           <div className="flex items-center gap-3 md:gap-6">
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-100">
-               <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-               <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Online</span>
+            <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-colors ${isOnline ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
+               <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${isOnline ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+               <span className={`text-[9px] font-bold uppercase tracking-wider ${isOnline ? 'text-emerald-600' : 'text-amber-600'}`}>
+                 {isOnline ? 'Online' : 'Modo Offline'}
+               </span>
             </div>
             <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 rounded-xl border border-emerald-100">
                <Globe className="w-3.5 h-3.5 text-emerald-600" />
@@ -162,7 +219,16 @@ const App: React.FC = () => {
 
         <div className="flex-1 overflow-y-auto">
           {activeTab === 'DASHBOARD' && <Dashboard medications={medications} currencySymbol={currency.symbol} />}
-          {activeTab === 'POS' && <PosSystem medications={medications} customers={customers} onCompleteSale={handleCompleteSale} onAddPatient={handleAddPatient} currencySymbol={currency.symbol} />}
+          {activeTab === 'POS' && (
+            <PosSystem 
+              medications={medications} 
+              customers={customers} 
+              onCompleteSale={handleCompleteSale} 
+              onAddPatient={handleAddPatient} 
+              currencySymbol={currency.symbol}
+              businessQR={businessQR}
+            />
+          )}
           {activeTab === 'INVENTORY' && (
              <InventoryManager 
                 medications={medications} 
@@ -263,7 +329,7 @@ const App: React.FC = () => {
           </div>
           <div className="hidden lg:block text-left">
             <p className="text-[10px] font-black uppercase tracking-widest opacity-70">Consultas</p>
-            <p className="text-sm font-bold">Asistente IA</p>
+            <p className="text-sm font-bold">Asistente Bot</p>
           </div>
           <Sparkles className="w-4 h-4 text-emerald-300 hidden lg:block" />
         </button>
@@ -293,7 +359,7 @@ const App: React.FC = () => {
                 <X className="w-6 h-6" />
               </button>
             </div>
-            <div className="p-8 space-y-6">
+            <div className="p-8 space-y-8 overflow-y-auto max-h-[70vh] no-scrollbar">
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Símbolo de Moneda</label>
                 <div className="grid grid-cols-2 gap-3">
@@ -302,7 +368,6 @@ const App: React.FC = () => {
                       key={curr.code}
                       onClick={() => {
                         setCurrency(curr);
-                        setIsSettingsOpen(false);
                       }}
                       className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${currency.code === curr.code ? 'bg-emerald-50 border-emerald-500 ring-2 ring-emerald-500/20' : 'bg-white border-slate-100 hover:border-slate-300'}`}
                     >
@@ -313,6 +378,60 @@ const App: React.FC = () => {
                       <span className="text-xl font-black text-emerald-600">{curr.symbol}</span>
                     </button>
                   ))}
+                </div>
+              </div>
+
+              <div className="pt-6 border-t border-slate-100">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">QR de Pago del Negocio</label>
+                <div className="flex flex-col gap-4">
+                  {businessQR ? (
+                    <div className="relative w-full aspect-square max-w-[200px] mx-auto bg-slate-50 rounded-3xl border border-slate-200 overflow-hidden group">
+                      <img src={businessQR} alt="Business QR" className="w-full h-full object-contain p-4" />
+                      <button 
+                        onClick={() => {
+                          setBusinessQR(null);
+                          localStorage.removeItem('FARMA_QR');
+                        }}
+                        className="absolute inset-0 bg-rose-600/80 text-white flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 className="w-8 h-8 mb-2" />
+                        <span className="text-xs font-black uppercase">Eliminar QR</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="w-full aspect-square max-w-[200px] mx-auto bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center text-slate-400 gap-2">
+                      <Bot className="w-10 h-10 opacity-20" />
+                      <p className="text-[10px] font-black uppercase tracking-widest">Sin QR configurado</p>
+                    </div>
+                  )}
+                  
+                  <div className="relative">
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            const base64 = reader.result as string;
+                            setBusinessQR(base64);
+                            localStorage.setItem('FARMA_QR', base64);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="hidden" 
+                      id="qr-upload"
+                    />
+                    <label 
+                      htmlFor="qr-upload"
+                      className="w-full py-4 bg-emerald-600 text-white font-black rounded-2xl shadow-xl shadow-emerald-600/30 flex items-center justify-center gap-2 cursor-pointer hover:bg-emerald-700 transition-all text-sm uppercase tracking-widest"
+                    >
+                      <Plus className="w-5 h-5" /> {businessQR ? 'Cambiar QR' : 'Subir QR de Pago'}
+                    </label>
+                  </div>
+                  <p className="text-[9px] text-slate-400 text-center italic">Este QR se mostrará a los clientes cuando elijan pago por QR.</p>
                 </div>
               </div>
             </div>

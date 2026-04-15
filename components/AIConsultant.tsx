@@ -5,6 +5,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getSystemAssistantResponse } from '../services/geminiService';
 import { Medication, SaleRecord, Customer, User as SystemUser } from '../types';
+import { generateBolivianInvoice, exportSalesToExcel, generateReportPDF } from '../lib/invoiceUtils';
+import * as XLSX from 'xlsx';
 
 interface Message {
   role: 'bot' | 'user';
@@ -49,8 +51,85 @@ const AIConsultant: React.FC<AIConsultantProps> = ({ onClose, medications, sales
     };
 
     const botResponse = await getSystemAssistantResponse(userMsg, systemData);
-    setMessages(prev => [...prev, { role: 'bot', content: botResponse }]);
+    
+    // Process Special Commands from Bot
+    if (botResponse.includes('[GENERATE_REPORT:')) {
+      const match = botResponse.match(/\[GENERATE_REPORT:(.*?)\]/);
+      if (match) {
+        try {
+          const config = JSON.parse(match[1]);
+          handleBotReport(config);
+        } catch (e) {
+          console.error("Error parsing bot report command", e);
+        }
+      }
+    }
+
+    if (botResponse.includes('[GENERATE_INVOICE:')) {
+      const match = botResponse.match(/\[GENERATE_INVOICE:(.*?)\]/);
+      if (match) {
+        try {
+          const config = JSON.parse(match[1]);
+          const sale = sales.find(s => s.id === config.saleId);
+          if (sale) generateBolivianInvoice(sale, 'Bs.');
+        } catch (e) {
+          console.error("Error parsing bot invoice command", e);
+        }
+      }
+    }
+
+    // Clean response for display
+    const cleanResponse = botResponse.replace(/\[GENERATE_.*?\]/g, '').trim();
+    setMessages(prev => [...prev, { role: 'bot', content: cleanResponse }]);
     setIsLoading(false);
+  };
+
+  const handleBotReport = (config: any) => {
+    const { type, period, format } = config;
+    let filteredSales = [...sales];
+    const now = new Date();
+
+    if (period === 'TODAY') {
+      filteredSales = sales.filter(s => new Date(s.timestamp).toDateString() === now.toDateString());
+    } else if (period === 'WEEK') {
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      filteredSales = sales.filter(s => new Date(s.timestamp) >= weekAgo);
+    } else if (period === 'YEAR') {
+      filteredSales = sales.filter(s => new Date(s.timestamp).getFullYear() === now.getFullYear());
+    }
+
+    if (type === 'SALES') {
+      if (format === 'EXCEL') {
+        exportSalesToExcel(filteredSales, `Reporte_Ventas_${period}`);
+      } else {
+        const reportData = filteredSales.map(s => ({
+          id: s.id,
+          fecha: new Date(s.timestamp).toLocaleDateString(),
+          cliente: s.customerName,
+          total: `Bs. ${s.total.toFixed(2)}`
+        }));
+        generateReportPDF(`Reporte de Ventas - ${period}`, reportData, ['ID', 'FECHA', 'CLIENTE', 'TOTAL'], `Reporte_Ventas_${period}`);
+      }
+    } else if (type === 'PERFORMANCE') {
+      // Top Sellers
+      const performance: any = {};
+      filteredSales.forEach(s => {
+        performance[s.userId] = (performance[s.userId] || 0) + s.total;
+      });
+      const perfData = Object.entries(performance).map(([user, total]) => ({
+        vendedor: user,
+        total: `Bs. ${(total as number).toFixed(2)}`
+      }));
+      
+      if (format === 'EXCEL') {
+        const worksheet = XLSX.utils.json_to_sheet(perfData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Rendimiento');
+        XLSX.writeFile(workbook, `Rendimiento_Vendedores_${period}.xlsx`);
+      } else {
+        generateReportPDF(`Rendimiento de Vendedores - ${period}`, perfData, ['VENDEDOR', 'TOTAL VENTAS'], `Rendimiento_${period}`);
+      }
+    }
   };
 
   return (
@@ -69,7 +148,7 @@ const AIConsultant: React.FC<AIConsultantProps> = ({ onClose, medications, sales
               </h2>
               <p className="text-emerald-100 text-xs flex items-center gap-1">
                 <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
-                Impulsado por Gemini 3.0
+                Impulsado por Marca Registrada
               </p>
             </div>
           </div>
@@ -85,7 +164,7 @@ const AIConsultant: React.FC<AIConsultantProps> = ({ onClose, medications, sales
               <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === 'user' ? 'bg-slate-200' : 'bg-emerald-100 text-emerald-600'}`}>
                 {msg.role === 'user' ? <User className="w-5 h-5 text-slate-600" /> : <Bot className="w-5 h-5" />}
               </div>
-              <div className={`max-w-[80%] p-4 rounded-2xl text-sm leading-relaxed shadow-sm ${
+              <div className={`max-w-[90%] md:max-w-[80%] p-4 rounded-2xl text-sm leading-relaxed shadow-sm ${
                 msg.role === 'user' 
                   ? 'bg-emerald-600 text-white rounded-tr-none' 
                   : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none'

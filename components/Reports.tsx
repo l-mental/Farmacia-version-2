@@ -4,6 +4,7 @@ import { BarChart3, Download, FileSpreadsheet, PieChart, TrendingUp, Users, Cale
 import { SaleRecord } from '../types';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
+import { generateBolivianInvoice } from '../lib/invoiceUtils';
 
 interface ReportsProps {
   sales: SaleRecord[];
@@ -29,6 +30,7 @@ const Reports: React.FC<ReportsProps> = ({ sales, currencySymbol }) => {
       'Paciente': sale.customerName,
       'Vendedor': sale.userId,
       'Seguro': sale.insuranceName,
+      'Método Pago': sale.paymentMethod,
       'Items': sale.items.length,
       'Total': sale.total
     }));
@@ -40,84 +42,7 @@ const Reports: React.FC<ReportsProps> = ({ sales, currencySymbol }) => {
   };
 
   const generateReceiptPDF = (sale: SaleRecord) => {
-    // Receipt size: 80mm width, dynamic height
-    // jspdf uses points (1mm = 2.83465 points)
-    const width = 80;
-    const height = 150 + (sale.items.length * 10);
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: [width, height]
-    });
-
-    const margin = 5;
-    let y = 10;
-
-    // Header
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('FARMASALUD', width / 2, y, { align: 'center' });
-    y += 5;
-    doc.setFontSize(8);
-    doc.text('RUC: 20123456789', width / 2, y, { align: 'center' });
-    y += 4;
-    doc.text('Av. Salud 123 - Lima', width / 2, y, { align: 'center' });
-    y += 6;
-
-    doc.setLineDashPattern([1, 1], 0);
-    doc.line(margin, y, width - margin, y);
-    y += 6;
-
-    // Sale Info
-    doc.setFontSize(7);
-    doc.text(`TICKET: ${sale.id}`, margin, y);
-    y += 4;
-    doc.text(`FECHA: ${new Date(sale.timestamp).toLocaleString()}`, margin, y);
-    y += 4;
-    doc.text(`VENDEDOR: ${sale.userId}`, margin, y);
-    y += 4;
-    doc.text(`PACIENTE: ${sale.customerName}`, margin, y);
-    y += 6;
-
-    doc.line(margin, y, width - margin, y);
-    y += 6;
-
-    // Items Header
-    doc.setFont('helvetica', 'bold');
-    doc.text('DESCRIPCION', margin, y);
-    doc.text('CANT', width - 25, y, { align: 'right' });
-    doc.text('TOTAL', width - margin, y, { align: 'right' });
-    y += 4;
-    doc.setFont('helvetica', 'normal');
-
-    // Items
-    sale.items.forEach(item => {
-      const name = item.medication.name.substring(0, 20);
-      doc.text(name, margin, y);
-      doc.text(item.quantity.toString(), width - 25, y, { align: 'right' });
-      doc.text(`${currencySymbol}${item.subtotal.toFixed(2)}`, width - margin, y, { align: 'right' });
-      y += 4;
-    });
-
-    y += 2;
-    doc.line(margin, y, width - margin, y);
-    y += 6;
-
-    // Totals
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.text('TOTAL A PAGAR:', margin, y);
-    doc.text(`${currencySymbol}${sale.total.toFixed(2)}`, width - margin, y, { align: 'right' });
-    y += 8;
-
-    // Footer
-    doc.setFontSize(7);
-    doc.setFont('helvetica', 'italic');
-    doc.text('¡Gracias por su preferencia!', width / 2, y, { align: 'center' });
-    y += 4;
-    doc.text('Conserve su ticket para cualquier reclamo', width / 2, y, { align: 'center' });
-
-    doc.save(`Ticket_${sale.id}.pdf`);
+    generateBolivianInvoice(sale, currencySymbol);
   };
 
   return (
@@ -217,6 +142,7 @@ const Reports: React.FC<ReportsProps> = ({ sales, currencySymbol }) => {
                 <th className="px-6 py-4">Paciente</th>
                 <th className="px-6 py-4">Vendedor</th>
                 <th className="px-6 py-4">Seguro</th>
+                <th className="px-6 py-4">Pago</th>
                 <th className="px-6 py-4">Items</th>
                 <th className="px-6 py-4 text-right">Total</th>
                 <th className="px-6 py-4"></th>
@@ -247,6 +173,15 @@ const Reports: React.FC<ReportsProps> = ({ sales, currencySymbol }) => {
                     </td>
                     <td className="px-6 py-4">
                       <span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[9px] font-black uppercase tracking-tighter">{sale.insuranceName}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-tighter ${
+                        sale.paymentMethod === 'QR' ? 'bg-emerald-100 text-emerald-700' : 
+                        sale.paymentMethod === 'CARD' ? 'bg-blue-100 text-blue-700' : 
+                        'bg-slate-100 text-slate-700'
+                      }`}>
+                        {sale.paymentMethod}
+                      </span>
                     </td>
                     <td className="px-6 py-4 text-xs text-slate-500">
                       {sale.items.length} {sale.items.length === 1 ? 'item' : 'items'}
@@ -310,6 +245,13 @@ const Reports: React.FC<ReportsProps> = ({ sales, currencySymbol }) => {
                   </div>
                   <div className="flex items-center gap-3">
                     <CreditCard className="w-4 h-4 text-slate-400" />
+                    <div>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Método de Pago</p>
+                      <p className="text-sm font-bold text-slate-700">{selectedSale.paymentMethod}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <User className="w-4 h-4 text-slate-400" />
                     <div>
                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Vendedor</p>
                       <p className="text-sm font-bold text-slate-700">ID: {selectedSale.userId}</p>

@@ -63,7 +63,18 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({ medications, onAdd,
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const finalMed: Medication = { ...formData as Medication, id: editingMed ? editingMed.id : Date.now().toString() };
+    
+    // Ensure unit price is calculated if not already
+    const priceBox = formData.priceBox || 0;
+    const units = formData.unitsPerBox || 1;
+    const priceUnit = formData.priceUnit || parseFloat((priceBox / units).toFixed(2));
+    
+    const finalMed: Medication = { 
+      ...formData as Medication, 
+      priceUnit,
+      id: editingMed ? editingMed.id : Date.now().toString() 
+    };
+    
     if (editingMed) onUpdate(finalMed); else onAdd(finalMed);
     setIsModalOpen(false);
   };
@@ -235,9 +246,41 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({ medications, onAdd,
                 </div>
                 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50 p-4 md:p-6 rounded-2xl md:rounded-3xl border border-slate-100">
-                  <InputGroup label="Precio Caja" type="number" value={formData.priceBox?.toString()} onChange={v => setFormData({...formData, priceBox: parseFloat(v)})} />
-                  <InputGroup label="Uds x Caja" type="number" value={formData.unitsPerBox?.toString()} onChange={v => setFormData({...formData, unitsPerBox: parseInt(v)})} />
-                  <InputGroup label="Stock Caja" type="number" value={formData.stockBoxes?.toString()} onChange={v => setFormData({...formData, stockBoxes: parseInt(v)})} />
+                  <InputGroup 
+                    label="Precio Caja" 
+                    type="number" 
+                    step="0.01"
+                    value={formData.priceBox?.toString()} 
+                    onChange={v => {
+                      const priceBox = parseFloat(v) || 0;
+                      const units = formData.unitsPerBox || 1;
+                      setFormData({
+                        ...formData, 
+                        priceBox, 
+                        priceUnit: parseFloat((priceBox / units).toFixed(2))
+                      });
+                    }} 
+                  />
+                  <InputGroup 
+                    label="Uds x Caja" 
+                    type="number" 
+                    value={formData.unitsPerBox?.toString()} 
+                    onChange={v => {
+                      const units = parseInt(v) || 1;
+                      const priceBox = formData.priceBox || 0;
+                      setFormData({
+                        ...formData, 
+                        unitsPerBox: units, 
+                        priceUnit: parseFloat((priceBox / units).toFixed(2))
+                      });
+                    }} 
+                  />
+                  <InputGroup 
+                    label="Stock Caja" 
+                    type="number" 
+                    value={formData.stockBoxes?.toString()} 
+                    onChange={v => setFormData({...formData, stockBoxes: parseInt(v) || 0})} 
+                  />
                   <InputGroup label="Lote" value={formData.batches?.[0]?.lotNumber} onChange={v => {
                     const b = [...(formData.batches || [])]; b[0] = {...b[0], lotNumber: v}; setFormData({...formData, batches: b});
                   }} />
@@ -256,11 +299,14 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({ medications, onAdd,
   );
 };
 
-const InputGroup = ({ label, value, onChange, type = "text" }: any) => (
+const InputGroup = ({ label, value, onChange, type = "text", step }: any) => (
   <div className="flex flex-col gap-1">
     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{label}</label>
     <input 
-      type={type} value={value} onChange={e => onChange(e.target.value)}
+      type={type} 
+      step={step}
+      value={value} 
+      onChange={e => onChange(e.target.value)}
       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 text-sm font-medium" 
     />
   </div>

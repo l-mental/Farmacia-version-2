@@ -9,8 +9,8 @@ export const INSURANCE_PLANS: InsurancePlan[] = [
 ];
 
 export const SUPPORTED_CURRENCIES: Currency[] = [
-  { code: 'USD', symbol: '$', name: 'Dólar Estadounidense' },
   { code: 'BOB', symbol: 'Bs', name: 'Boliviano' },
+  { code: 'USD', symbol: '$', name: 'Dólar Estadounidense' },
   { code: 'ARS', symbol: 'ARS$', name: 'Peso Argentino' },
   { code: 'MXN', symbol: 'MXN$', name: 'Peso Mexicano' },
   { code: 'PEN', symbol: 'S/', name: 'Sol Peruano' },

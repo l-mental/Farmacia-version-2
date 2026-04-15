@@ -4,8 +4,8 @@ import { GoogleGenAI, Type } from "@google/genai";
 // Removed intermediate variable and used process.env.API_KEY directly in the functions below
 
 export const getGeminiHealthAdvice = async (query: string) => {
-  // Use process.env.API_KEY directly as a named parameter to initialize the client
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = localStorage.getItem('CUSTOM_GEMINI_API_KEY') || process.env.API_KEY || process.env.GEMINI_API_KEY;
+  const ai = new GoogleGenAI({ apiKey: apiKey || '' });
   try {
     /* Fix: Separated system instruction from user content for better model steering */
     const response = await ai.models.generateContent({
@@ -24,7 +24,8 @@ export const getGeminiHealthAdvice = async (query: string) => {
 };
 
 export const analyzePrescription = async (base64Data: string) => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const apiKey = localStorage.getItem('CUSTOM_GEMINI_API_KEY') || process.env.API_KEY || process.env.GEMINI_API_KEY;
+  const ai = new GoogleGenAI({ apiKey: apiKey || '' });
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
@@ -56,7 +57,7 @@ export const analyzePrescription = async (base64Data: string) => {
 };
 
 export const getSystemAssistantResponse = async (query: string, systemData: any) => {
-  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+  const apiKey = localStorage.getItem('CUSTOM_GEMINI_API_KEY') || process.env.API_KEY || process.env.GEMINI_API_KEY;
   
   // Local Fallback Logic for basic queries if API fails or key is missing
   const getLocalResponse = (q: string, data: any) => {
@@ -102,7 +103,12 @@ export const getSystemAssistantResponse = async (query: string, systemData: any)
         1. Solo responde preguntas sobre el sistema.
         2. Sé preciso con los números.
         3. Si detectas stock bajo (menos de 10 unidades), advierte al usuario.
-        4. Mantén un tono profesional y eficiente.`,
+        4. Mantén un tono profesional y eficiente.
+        5. SI EL USUARIO PIDE UN REPORTE (ej: "dame un reporte de ventas", "quién vendió más", "reporte del año"), genera la respuesta y AL FINAL añade una línea con este formato exacto: [GENERATE_REPORT:{"type":"SALES","period":"TODAY","format":"PDF"}]
+           - Los tipos pueden ser: SALES, INVENTORY, PERFORMANCE.
+           - Los periodos pueden ser: TODAY, WEEK, MONTH, YEAR, ALL.
+           - Los formatos pueden ser: PDF, EXCEL.
+        6. Si el usuario pide una factura específica (ej: "emite la factura S123"), añade: [GENERATE_INVOICE:{"saleId":"S123"}]`,
       }
     });
     return response.text || "Lo siento, no pude procesar tu consulta sobre el sistema.";

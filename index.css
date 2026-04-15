@@ -17,7 +17,17 @@
 }
 
 .markdown-body table {
-  @apply w-full border-collapse mb-4 mt-2 overflow-hidden rounded-xl border border-slate-200 shadow-sm;
+  @apply block w-full overflow-x-auto border-collapse mb-4 mt-2 rounded-xl border border-slate-200 shadow-sm;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.markdown-body table::-webkit-scrollbar {
+  display: none;
+}
+
+.markdown-body table thead, .markdown-body table tbody {
+  @apply min-w-full inline-table;
 }
 
 .markdown-body thead {

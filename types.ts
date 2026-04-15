@@ -84,6 +84,8 @@ export interface PrescriptionAnalysis {
   isAuthentic: boolean;
 }
 
+export type PaymentMethod = 'CASH' | 'QR' | 'CARD';
+
 export interface SaleRecord {
   id: string;
   timestamp: string;
@@ -93,10 +95,25 @@ export interface SaleRecord {
   customerName?: string;
   insuranceName: string;
   userId: string;
+  paymentMethod: PaymentMethod;
 }
 
 export interface Currency {
   code: string;
   symbol: string;
   name: string;
+}
+
+declare global {
+  interface Window {
+    google: any;
+  }
+}
+
+interface ImportMetaEnv {
+  readonly VITE_GOOGLE_CLIENT_ID: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
 }
