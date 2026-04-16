@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo } from 'react';
 import { Search, ShoppingBag, Plus, Minus, Trash2, CheckCircle2, User, FileText, AlertCircle, ShieldCheck, X, ChevronUp, Printer, CreditCard, DollarSign, QrCode, Activity } from 'lucide-react';
-import { Medication, SaleItem, InsurancePlan, PrescriptionData, Customer, SaleRecord } from '../types';
-import { INSURANCE_PLANS } from '../constants';
+import { Medication, SaleItem, InsurancePlan, PrescriptionData, Customer, SaleRecord } from '@/types';
+import { INSURANCE_PLANS } from '@/constants';
 import { generateBolivianInvoice } from '../lib/invoiceUtils';
 
 interface PosSystemProps {

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Medication } from '../types';
+import { Medication } from '@/types';
 import { ShoppingCart, Info, AlertTriangle } from 'lucide-react';
 
 interface MedicationCardProps {

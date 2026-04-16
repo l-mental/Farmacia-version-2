@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { BarChart3, Download, FileSpreadsheet, PieChart, TrendingUp, Users, Calendar, ShoppingBag, User, ChevronRight, X, Pill, Clock, CreditCard, Search, ShieldCheck, Printer } from 'lucide-react';
-import { SaleRecord } from '../types';
+import { SaleRecord } from '@/types';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import { generateBolivianInvoice } from '../lib/invoiceUtils';

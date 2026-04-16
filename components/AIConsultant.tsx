@@ -3,8 +3,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, X, Sparkles, Loader2, BarChart3 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { getSystemAssistantResponse } from '../services/geminiService';
-import { Medication, SaleRecord, Customer, User as SystemUser } from '../types';
+import { getSystemAssistantResponse } from '@/services/geminiService';
+import { Medication, SaleRecord, Customer, User as SystemUser } from '@/types';
 import { generateBolivianInvoice, exportSalesToExcel, generateReportPDF } from '../lib/invoiceUtils';
 import * as XLSX from 'xlsx';
 

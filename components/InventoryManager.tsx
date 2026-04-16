@@ -1,12 +1,14 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   Plus, Edit2, Trash2, Search, X, Pill, 
   Package, AlertTriangle, Calendar, Activity, 
   ShieldCheck, Save, Image as ImageIcon, 
-  FileText, Hash, DollarSign, ChevronRight 
+  FileText, Hash, DollarSign, ChevronRight,
+  Upload, Download
 } from 'lucide-react';
-import { Medication, Category, Batch } from '../types';
+import * as XLSX from 'xlsx';
+import { Medication, Category, Batch } from '@/types';
 
 interface InventoryManagerProps {
   medications: Medication[];
@@ -20,6 +22,81 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({ medications, onAdd,
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMed, setEditingMed] = useState<Medication | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const bstr = evt.target?.result;
+      const wb = XLSX.read(bstr, { type: 'binary' });
+      const wsname = wb.SheetNames[0];
+      const ws = wb.Sheets[wsname];
+      const data = XLSX.utils.sheet_to_json(ws);
+
+      data.forEach((row: any) => {
+        const priceBox = parseFloat(row['Precio Caja']) || 0;
+        const unitsPerBox = parseInt(row['Unidades por Caja']) || 1;
+        const stockBoxes = parseInt(row['Stock Cajas']) || 0;
+        const stockUnits = stockBoxes * unitsPerBox;
+
+        const newMed: Medication = {
+          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+          name: row['Nombre'] || 'Sin Nombre',
+          genericName: row['Nombre Genérico'] || '',
+          laboratory: row['Laboratorio'] || '',
+          description: row['Descripción'] || '',
+          priceBox: priceBox,
+          priceUnit: parseFloat((priceBox / unitsPerBox).toFixed(2)),
+          unitsPerBox: unitsPerBox,
+          category: (row['Categoría'] as Category) || Category.OTHERS,
+          imageUrl: row['Imagen URL'] || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=400',
+          stockBoxes: stockBoxes,
+          stockUnits: stockUnits,
+          isControlled: row['Controlado'] === 'SI' || row['Controlado'] === true,
+          minStock: parseInt(row['Stock Mínimo']) || 5,
+          batches: [
+            {
+              lotNumber: row['Lote'] || 'L-' + Math.floor(Math.random() * 9000),
+              expiryDate: row['Vencimiento'] || '',
+              quantity: stockUnits
+            }
+          ]
+        };
+        onAdd(newMed);
+      });
+      
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      alert(`${data.length} productos importados correctamente.`);
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const downloadTemplate = () => {
+    const template = [
+      {
+        'Nombre': 'Paracetamol 500mg',
+        'Nombre Genérico': 'Paracetamol',
+        'Laboratorio': 'Genfar',
+        'Descripción': 'Analgésico y antipirético',
+        'Precio Caja': 50.00,
+        'Unidades por Caja': 20,
+        'Stock Cajas': 10,
+        'Categoría': 'ANALGESICOS',
+        'Controlado': 'NO',
+        'Stock Mínimo': 5,
+        'Lote': 'LOT123',
+        'Vencimiento': '2025-12-31',
+        'Imagen URL': ''
+      }
+    ];
+    const ws = XLSX.utils.json_to_sheet(template);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Plantilla");
+    XLSX.writeFile(wb, "Plantilla_Inventario.xlsx");
+  };
 
   const [formData, setFormData] = useState<Partial<Medication>>({
     name: '',
@@ -100,6 +177,27 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({ medications, onAdd,
             <p className="text-slate-400 text-xs md:text-sm font-medium">Control de lotes y trazabilidad.</p>
           </div>
           <div className="flex flex-col xs:flex-row gap-3">
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleImportExcel} 
+              accept=".xlsx, .xls" 
+              className="hidden" 
+            />
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="bg-white border border-slate-200 text-slate-600 px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-50 transition-all text-sm shadow-sm"
+              title="Importar desde Excel"
+            >
+              <Upload className="w-4 h-4"/> <span className="hidden lg:inline">Importar</span>
+            </button>
+            <button 
+              onClick={downloadTemplate}
+              className="bg-white border border-slate-200 text-slate-600 px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-50 transition-all text-sm shadow-sm"
+              title="Descargar Plantilla"
+            >
+              <Download className="w-4 h-4"/> <span className="hidden lg:inline">Plantilla</span>
+            </button>
             <div className="relative flex-1">
               <input 
                 type="text" 

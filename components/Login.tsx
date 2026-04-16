@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { HeartPulse, Lock, User as UserIcon, ArrowRight, Key } from 'lucide-react';
-import { UserRole, User } from '../types';
+import { UserRole, User } from '@/types';
 import { jwtDecode } from 'jwt-decode';
 
 interface LoginProps {
@@ -20,13 +20,14 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       window.google.accounts.id.initialize({
         client_id: clientId,
         callback: handleGoogleResponse,
-        auto_select: true, // This enables "automatic registration" if already logged in
+        use_fedcm_for_prompt: false,
+        itp_support: true,
       });
       window.google.accounts.id.renderButton(
         document.getElementById("googleBtn"),
         { theme: "outline", size: "large", width: "100%" }
       );
-      window.google.accounts.id.prompt(); // Also show One Tap
+      // Removed window.google.accounts.id.prompt() to avoid FedCM errors in iframes
     }
   }, []);
 

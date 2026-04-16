@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { TrendingUp, AlertTriangle, Calendar, Package } from 'lucide-react';
-import { Medication } from '../types';
+import { Medication } from '@/types';
 
 interface DashboardProps {
   medications: Medication[];

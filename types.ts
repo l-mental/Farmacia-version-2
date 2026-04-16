@@ -104,6 +104,17 @@ export interface Currency {
   name: string;
 }
 
+export interface Supplier {
+  id: string;
+  name: string;
+  phone: string;
+  ci: string;
+  address: string;
+  status: 'active' | 'inactive';
+  registrationDate: string;
+  lastUpdate: string;
+}
+
 declare global {
   interface Window {
     google: any;

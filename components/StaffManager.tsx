@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Users, UserPlus, Shield, Mail, Phone, Trash2, Edit2, Search, X, BarChart2 } from 'lucide-react';
-import { User, UserRole } from '../types';
+import { User, UserRole } from '@/types';
 
 interface StaffManagerProps {
   staff: User[];

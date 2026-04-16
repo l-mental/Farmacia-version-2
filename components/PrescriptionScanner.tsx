@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
 import { Camera, Upload, FileText, CheckCircle2, AlertCircle, Loader2, Sparkles, X } from 'lucide-react';
-import { analyzePrescription } from '../services/geminiService';
-import { PrescriptionAnalysis } from '../types';
+import { analyzePrescription } from '@/services/geminiService';
+import { PrescriptionAnalysis } from '@/types';
 
 const PrescriptionScanner: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
