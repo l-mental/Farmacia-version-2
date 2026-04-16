@@ -43,13 +43,21 @@ const PosSystem: React.FC<PosSystemProps> = ({ medications, customers, onComplet
   const total = subtotal - discount;
 
   const addToCart = (med: Medication, isFractional: boolean) => {
+    // Find first batch with stock
+    const availableBatch = med.batches.find(b => b.quantity > 0) || med.batches[0];
+    const selectedBatch = availableBatch?.lotNumber || 'N/A';
+
     setCart(prev => {
-      const existing = prev.find(item => item.medication.id === med.id && item.isFractional === isFractional);
+      const existing = prev.find(item => 
+        item.medication.id === med.id && 
+        item.isFractional === isFractional && 
+        item.selectedBatch === selectedBatch
+      );
       const price = isFractional ? med.priceUnit : med.priceBox;
       
       if (existing) {
         return prev.map(item => 
-          (item.medication.id === med.id && item.isFractional === isFractional) 
+          (item.medication.id === med.id && item.isFractional === isFractional && item.selectedBatch === selectedBatch) 
             ? { ...item, quantity: item.quantity + 1, subtotal: (item.quantity + 1) * price } 
             : item
         );
@@ -58,7 +66,7 @@ const PosSystem: React.FC<PosSystemProps> = ({ medications, customers, onComplet
         medication: med, 
         quantity: 1, 
         isFractional, 
-        selectedBatch: med.batches[0]?.lotNumber || 'N/A', 
+        selectedBatch, 
         subtotal: price 
       }];
     });
@@ -73,8 +81,47 @@ const PosSystem: React.FC<PosSystemProps> = ({ medications, customers, onComplet
       const newCart = [...prev];
       const item = { ...newCart[index] };
       const price = item.isFractional ? item.medication.priceUnit : item.medication.priceBox;
+      
+      // Check batch stock
+      const batch = item.medication.batches.find(b => b.lotNumber === item.selectedBatch);
+      const currentQtyInUnits = item.isFractional ? item.quantity : item.quantity * item.medication.unitsPerBox;
+      const deltaInUnits = item.isFractional ? delta : delta * item.medication.unitsPerBox;
+      
+      if (batch && delta > 0 && (currentQtyInUnits + deltaInUnits) > batch.quantity) {
+        alert(`Stock insuficiente en el lote ${item.selectedBatch}. Máximo disponible: ${item.isFractional ? batch.quantity : Math.floor(batch.quantity / item.medication.unitsPerBox)}`);
+        return prev;
+      }
+
       item.quantity = Math.max(1, item.quantity + delta);
       item.subtotal = item.quantity * price;
+      newCart[index] = item;
+      return newCart;
+    });
+  };
+
+  const updateCartBatch = (index: number, newBatchLot: string) => {
+    setCart(prev => {
+      const newCart = [...prev];
+      const item = { ...newCart[index] };
+      
+      // Check if another item in cart already has this medication + fractional + new batch
+      const existingIndex = prev.findIndex((it, idx) => 
+        idx !== index && 
+        it.medication.id === item.medication.id && 
+        it.isFractional === item.isFractional && 
+        it.selectedBatch === newBatchLot
+      );
+
+      if (existingIndex !== -1) {
+        // Merge them
+        const existingItem = { ...newCart[existingIndex] };
+        existingItem.quantity += item.quantity;
+        existingItem.subtotal = existingItem.quantity * (item.isFractional ? item.medication.priceUnit : item.medication.priceBox);
+        newCart[existingIndex] = existingItem;
+        return newCart.filter((_, idx) => idx !== index);
+      }
+
+      item.selectedBatch = newBatchLot;
       newCart[index] = item;
       return newCart;
     });
@@ -276,7 +323,17 @@ const PosSystem: React.FC<PosSystemProps> = ({ medications, customers, onComplet
                         <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter ${item.isFractional ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
                           {item.isFractional ? 'Unidad' : 'Caja'}
                         </span>
-                        <span className="text-[9px] text-slate-400 font-bold font-mono">LOTE: {item.selectedBatch}</span>
+                        <select 
+                          value={item.selectedBatch}
+                          onChange={(e) => updateCartBatch(i, e.target.value)}
+                          className="text-[9px] text-slate-500 font-bold font-mono bg-slate-50 border-none outline-none cursor-pointer hover:text-emerald-600 transition-colors"
+                        >
+                          {item.medication.batches.map(b => (
+                            <option key={b.lotNumber} value={b.lotNumber}>
+                              LOTE: {b.lotNumber} ({item.isFractional ? b.quantity : Math.floor(b.quantity / item.medication.unitsPerBox)} disp.)
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                     <div className="text-right shrink-0">

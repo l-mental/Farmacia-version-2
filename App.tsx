@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Bot, Sparkles } from 'lucide-react';
 import { useFarmaData } from '@/hooks/useFarmaData';
 import Login from '@/components/Login';
@@ -19,7 +20,7 @@ import NewPatientModal from '@/components/modals/NewPatientModal';
 
 type TabType = 'DASHBOARD' | 'POS' | 'INVENTORY' | 'REPORTS' | 'CUSTOMERS' | 'STAFF' | 'SETTINGS' | 'SUPPLIERS';
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const {
     currentUser,
     medications,
@@ -41,20 +42,21 @@ const App: React.FC = () => {
     handleCompleteSale
   } = useFarmaData();
 
-  const [activeTab, setActiveTab] = useState<TabType>('DASHBOARD');
   const [isAIConsultantOpen, setIsAIConsultantOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNewPatientModalOpen, setIsNewPatientModalOpen] = useState(false);
+  const location = useLocation();
 
   if (!currentUser) {
     return <Login onLogin={handleLogin} />;
   }
 
+  const activeTab = (location.pathname.split('/')[1]?.toUpperCase() || 'DASHBOARD') as TabType;
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row relative overflow-hidden">
       <Sidebar 
         activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
         currentUser={currentUser} 
         onLogout={handleLogout} 
       />
@@ -69,58 +71,63 @@ const App: React.FC = () => {
         />
 
         <div className="flex-1 overflow-y-auto">
-          {activeTab === 'DASHBOARD' && <Dashboard medications={medications} currencySymbol={currency.symbol} />}
-          {activeTab === 'POS' && (
-            <PosSystem 
-              medications={medications} 
-              customers={customers} 
-              onCompleteSale={handleCompleteSale} 
-              onAddPatient={handleAddPatient} 
-              currencySymbol={currency.symbol}
-              businessQR={businessQR}
-            />
-          )}
-          {activeTab === 'INVENTORY' && (
-             <InventoryManager 
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<Dashboard medications={medications} currencySymbol={currency.symbol} />} />
+            <Route path="/pos" element={
+              <PosSystem 
                 medications={medications} 
-                onAdd={(m) => setMedications(prev => [...prev, m])} 
-                onUpdate={(m) => setMedications(prev => prev.map(x => x.id === m.id ? m : x))} 
-                onDelete={(id) => setMedications(prev => prev.filter(x => x.id !== id))}
+                customers={customers} 
+                onCompleteSale={handleCompleteSale} 
+                onAddPatient={handleAddPatient} 
                 currencySymbol={currency.symbol}
+                businessQR={businessQR}
               />
-          )}
-          {activeTab === 'REPORTS' && <Reports sales={sales} currencySymbol={currency.symbol} />}
-          {activeTab === 'SUPPLIERS' && (
-            <SuppliersManager 
-              suppliers={suppliers}
-              onAdd={(s) => setSuppliers(prev => [...prev, s])}
-              onUpdate={(s) => setSuppliers(prev => prev.map(x => x.id === s.id ? s : x))}
-              onDelete={(id) => setSuppliers(prev => prev.filter(x => x.id !== id))}
-            />
-          )}
-          {activeTab === 'CUSTOMERS' && (
-            <CustomersManager 
-              customers={customers}
-              sales={sales}
-              currency={currency}
-              onOpenAddModal={() => setIsNewPatientModalOpen(true)}
-            />
-          )}
-          {activeTab === 'STAFF' && currentUser.role === 'ADMIN' && (
-            <StaffManager 
-              staff={staff} 
-              onAdd={(u) => setStaff(prev => [...prev, u])} 
-              onUpdate={(u) => setStaff(prev => prev.map(x => x.id === u.id ? u : x))} 
-              onDelete={(id) => setStaff(prev => prev.filter(x => x.id !== id))}
-              sales={sales}
-            />
-          )}
+            } />
+            <Route path="/inventory" element={
+               <InventoryManager 
+                  medications={medications} 
+                  onAdd={(m) => setMedications(prev => [...prev, m])} 
+                  onUpdate={(m) => setMedications(prev => prev.map(x => x.id === m.id ? m : x))} 
+                  onDelete={(id) => setMedications(prev => prev.filter(x => x.id !== id))}
+                  currencySymbol={currency.symbol}
+                />
+            } />
+            <Route path="/reports" element={<Reports sales={sales} currencySymbol={currency.symbol} />} />
+            <Route path="/suppliers" element={
+              <SuppliersManager 
+                suppliers={suppliers}
+                onAdd={(s) => setSuppliers(prev => [...prev, s])}
+                onUpdate={(s) => setSuppliers(prev => prev.map(x => x.id === s.id ? s : x))}
+                onDelete={(id) => setSuppliers(prev => prev.filter(x => x.id !== id))}
+              />
+            } />
+            <Route path="/customers" element={
+              <CustomersManager 
+                customers={customers}
+                sales={sales}
+                currency={currency}
+                onOpenAddModal={() => setIsNewPatientModalOpen(true)}
+              />
+            } />
+            <Route path="/staff" element={
+              currentUser.role === 'ADMIN' ? (
+                <StaffManager 
+                  staff={staff} 
+                  onAdd={(u) => setStaff(prev => [...prev, u])} 
+                  onUpdate={(u) => setStaff(prev => prev.map(x => x.id === u.id ? u : x))} 
+                  onDelete={(id) => setStaff(prev => prev.filter(x => x.id !== id))}
+                  sales={sales}
+                />
+              ) : <Navigate to="/dashboard" replace />
+            } />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
         </div>
       </main>
 
       <MobileNav 
         activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
         currentUser={currentUser} 
       />
 
@@ -177,6 +184,14 @@ const App: React.FC = () => {
         }
       `}</style>
     </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
   );
 };
 

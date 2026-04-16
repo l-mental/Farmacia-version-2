@@ -1,37 +1,39 @@
 
 import React from 'react';
+import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, ShoppingCart, Pill, BarChart3, Users, Truck, UserCog } from 'lucide-react';
 import { User } from '@/types';
 
 interface MobileNavProps {
   activeTab: string;
-  setActiveTab: (tab: any) => void;
   currentUser: User;
 }
 
-const MobileNav: React.FC<MobileNavProps> = ({ activeTab, setActiveTab, currentUser }) => {
+const MobileNav: React.FC<MobileNavProps> = ({ activeTab, currentUser }) => {
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-white/10 flex justify-around items-center h-16 px-4 z-[90]">
-      <MobileTabButton active={activeTab === 'DASHBOARD'} onClick={() => setActiveTab('DASHBOARD')} icon={<LayoutDashboard />} />
-      <MobileTabButton active={activeTab === 'POS'} onClick={() => setActiveTab('POS')} icon={<ShoppingCart />} />
-      <MobileTabButton active={activeTab === 'INVENTORY'} onClick={() => setActiveTab('INVENTORY')} icon={<Pill />} />
-      <MobileTabButton active={activeTab === 'REPORTS'} onClick={() => setActiveTab('REPORTS')} icon={<BarChart3 />} />
-      <MobileTabButton active={activeTab === 'CUSTOMERS'} onClick={() => setActiveTab('CUSTOMERS')} icon={<Users />} />
-      <MobileTabButton active={activeTab === 'SUPPLIERS'} onClick={() => setActiveTab('SUPPLIERS')} icon={<Truck />} />
+      <MobileTabButton to="/dashboard" icon={<LayoutDashboard />} />
+      <MobileTabButton to="/pos" icon={<ShoppingCart />} />
+      <MobileTabButton to="/inventory" icon={<Pill />} />
+      <MobileTabButton to="/reports" icon={<BarChart3 />} />
+      <MobileTabButton to="/customers" icon={<Users />} />
+      <MobileTabButton to="/suppliers" icon={<Truck />} />
       {currentUser.role === 'ADMIN' && (
-        <MobileTabButton active={activeTab === 'STAFF'} onClick={() => setActiveTab('STAFF')} icon={<UserCog />} />
+        <MobileTabButton to="/staff" icon={<UserCog />} />
       )}
     </nav>
   );
 };
 
-const MobileTabButton = ({ active, onClick, icon }: any) => (
-  <button 
-    onClick={onClick}
-    className={`p-3 rounded-xl transition-all ${active ? 'text-emerald-500' : 'text-slate-500'}`}
+const MobileTabButton = ({ to, icon }: { to: string, icon: any }) => (
+  <NavLink 
+    to={to}
+    className={({ isActive }) => 
+      `p-3 rounded-xl transition-all ${isActive ? 'text-emerald-500' : 'text-slate-500'}`
+    }
   >
     {React.cloneElement(icon, { className: 'w-6 h-6' })}
-  </button>
+  </NavLink>
 );
 
 export default MobileNav;

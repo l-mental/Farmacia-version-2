@@ -1,16 +1,16 @@
 
 import React from 'react';
+import { NavLink } from 'react-router-dom';
 import { HeartPulse, LayoutDashboard, ShoppingCart, Pill, BarChart3, Users, Truck, UserCog, LogOut } from 'lucide-react';
 import { User } from '@/types';
 
 interface SidebarProps {
   activeTab: string;
-  setActiveTab: (tab: any) => void;
   currentUser: User;
   onLogout: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, currentUser, onLogout }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeTab, currentUser, onLogout }) => {
   return (
     <aside className="hidden md:flex w-64 lg:w-72 bg-slate-900 flex-col shrink-0 transition-all duration-300 z-50 h-screen border-r border-white/5">
       <div className="p-8 mb-4">
@@ -25,14 +25,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, currentUser,
       </div>
 
       <nav className="flex-1 px-4 space-y-2 overflow-y-auto no-scrollbar">
-        <NavButton active={activeTab === 'DASHBOARD'} onClick={() => setActiveTab('DASHBOARD')} icon={<LayoutDashboard />} label="Dashboard" />
-        <NavButton active={activeTab === 'POS'} onClick={() => setActiveTab('POS')} icon={<ShoppingCart />} label="Punto de Venta" />
-        <NavButton active={activeTab === 'INVENTORY'} onClick={() => setActiveTab('INVENTORY')} icon={<Pill />} label="Inventario" />
-        <NavButton active={activeTab === 'REPORTS'} onClick={() => setActiveTab('REPORTS')} icon={<BarChart3 />} label="Reportes" />
-        <NavButton active={activeTab === 'CUSTOMERS'} onClick={() => setActiveTab('CUSTOMERS')} icon={<Users />} label="Pacientes" />
-        <NavButton active={activeTab === 'SUPPLIERS'} onClick={() => setActiveTab('SUPPLIERS')} icon={<Truck />} label="Proveedores" />
+        <NavButton to="/dashboard" icon={<LayoutDashboard />} label="Dashboard" />
+        <NavButton to="/pos" icon={<ShoppingCart />} label="Punto de Venta" />
+        <NavButton to="/inventory" icon={<Pill />} label="Inventario" />
+        <NavButton to="/reports" icon={<BarChart3 />} label="Reportes" />
+        <NavButton to="/customers" icon={<Users />} label="Pacientes" />
+        <NavButton to="/suppliers" icon={<Truck />} label="Proveedores" />
         {currentUser.role === 'ADMIN' && (
-          <NavButton active={activeTab === 'STAFF'} onClick={() => setActiveTab('STAFF')} icon={<UserCog />} label="Personal" />
+          <NavButton to="/staff" icon={<UserCog />} label="Personal" />
         )}
       </nav>
 
@@ -55,14 +55,16 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, currentUser,
   );
 };
 
-const NavButton = ({ active, onClick, icon, label }: any) => (
-  <button 
-    onClick={onClick}
-    className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all duration-200 ${active ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-900/40 translate-x-1' : 'text-slate-400 hover:text-white hover:bg-white/5 hover:translate-x-1'}`}
+const NavButton = ({ to, icon, label }: { to: string, icon: any, label: string }) => (
+  <NavLink 
+    to={to}
+    className={({ isActive }) => 
+      `w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all duration-200 ${isActive ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-900/40 translate-x-1' : 'text-slate-400 hover:text-white hover:bg-white/5 hover:translate-x-1'}`
+    }
   >
     {React.cloneElement(icon, { className: 'w-6 h-6 shrink-0' })}
     <span className="font-bold hidden md:block text-sm tracking-tight">{label}</span>
-  </button>
+  </NavLink>
 );
 
 export default Sidebar;

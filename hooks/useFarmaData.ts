@@ -127,16 +127,29 @@ export const useFarmaData = () => {
     const updatedMeds = medications.map(med => {
       const soldItemsForMed = items.filter(item => item.medication.id === med.id);
       if (soldItemsForMed.length > 0) {
-        let newStockBoxes = med.stockBoxes;
-        let newStockUnits = med.stockUnits;
+        let newBatches = [...med.batches];
+        
         soldItemsForMed.forEach(soldItem => {
-          if (soldItem.isFractional) {
-            newStockUnits = Math.max(0, newStockUnits - soldItem.quantity);
-          } else {
-            newStockBoxes = Math.max(0, newStockBoxes - soldItem.quantity);
+          const batchIndex = newBatches.findIndex(b => b.lotNumber === soldItem.selectedBatch);
+          if (batchIndex !== -1) {
+            const quantityInUnits = soldItem.isFractional ? soldItem.quantity : soldItem.quantity * med.unitsPerBox;
+            newBatches[batchIndex] = {
+              ...newBatches[batchIndex],
+              quantity: Math.max(0, newBatches[batchIndex].quantity - quantityInUnits)
+            };
           }
         });
-        return { ...med, stockBoxes: newStockBoxes, stockUnits: newStockUnits };
+
+        const totalUnits = newBatches.reduce((sum, b) => sum + b.quantity, 0);
+        const newStockBoxes = Math.floor(totalUnits / med.unitsPerBox);
+        const newStockUnits = totalUnits;
+
+        return { 
+          ...med, 
+          batches: newBatches,
+          stockBoxes: newStockBoxes,
+          stockUnits: newStockUnits
+        };
       }
       return med;
     });
