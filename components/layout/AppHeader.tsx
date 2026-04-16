@@ -11,12 +11,28 @@ interface AppHeaderProps {
   onLogout: () => void;
 }
 
+const TAB_LABELS: Record<string, string> = {
+  'DASHBOARD': 'Panel de Control',
+  'POS': 'Punto de Venta',
+  'INVENTORY': 'Inventario',
+  'REPORTS': 'Reportes',
+  'CUSTOMERS': 'Pacientes',
+  'SUPPLIERS': 'Proveedores',
+  'STAFF': 'Personal',
+  'SETTINGS': 'Configuración'
+};
+
 const AppHeader: React.FC<AppHeaderProps> = ({ activeTab, isOnline, currency, onOpenSettings, onLogout }) => {
+  const displayTab = TAB_LABELS[activeTab] || activeTab;
+
   return (
-    <header className="h-16 md:h-20 bg-white border-b border-slate-100 flex items-center justify-between px-6 md:px-10 shrink-0">
+    <header className="h-16 md:h-20 bg-white border-b border-slate-100 flex items-center justify-between px-6 md:px-10 shrink-0 z-10">
       <div className="flex items-center gap-3">
         <div className="w-1.5 h-5 md:h-6 bg-emerald-500 rounded-full" />
-        <h2 className="text-xs md:text-sm font-black text-slate-800 uppercase tracking-widest">{activeTab}</h2>
+        <div className="flex flex-col">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mb-1">FarmaSalud AI</span>
+          <h2 className="text-sm md:text-base font-bold text-slate-800 tracking-tight">{displayTab}</h2>
+        </div>
       </div>
       <div className="flex items-center gap-3 md:gap-6">
         <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-colors ${isOnline ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
