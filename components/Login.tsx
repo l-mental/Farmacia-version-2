@@ -37,6 +37,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       id: decoded.sub,
       name: decoded.name,
       role: 'EMPLOYEE', // Default role for Google users
+      originalRole: 'EMPLOYEE',
       username: decoded.email,
       email: decoded.email
     });
@@ -52,9 +53,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
     // Simulación de login
     if (username.toLowerCase() === 'admin') {
-      onLogin({ id: '1', name: 'Administrador Principal', role: 'ADMIN', username: 'admin' });
+      onLogin({ id: '1', name: 'Administrador Principal', role: 'ADMIN', originalRole: 'ADMIN', username: 'admin' });
     } else {
-      onLogin({ id: '2', name: 'Vendedor Juan', role: 'EMPLOYEE', username: 'empleado' });
+      onLogin({ id: '2', name: 'Vendedor Juan', role: 'EMPLOYEE', originalRole: 'EMPLOYEE', username: 'empleado' });
     }
   };
 
@@ -65,7 +66,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           <div className="inline-flex bg-emerald-600 p-4 rounded-2xl shadow-xl shadow-emerald-200 mb-4">
             <HeartPulse className="text-white w-10 h-10" />
           </div>
-          <h1 className="text-3xl font-black text-slate-800">FarmaSalud <span className="text-emerald-600">Gestión</span></h1>
+          <h1 className="text-3xl font-black text-slate-800">FarmaPOS <span className="text-emerald-600">Gestión</span></h1>
           <p className="text-slate-500 mt-2">Acceso exclusivo para personal autorizado</p>
         </div>
 

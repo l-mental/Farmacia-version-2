@@ -1,5 +1,5 @@
 {
-  "name": "FarmaSalud AI",
+  "name": "FarmaPOS",
   "description": "Una plataforma farmacéutica moderna con asistente de salud inteligente impulsado por Gemini, análisis de recetas por visión artificial y gestión de medicamentos.",
   "requestFramePermissions": [
     "camera"

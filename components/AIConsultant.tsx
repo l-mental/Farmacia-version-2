@@ -23,7 +23,7 @@ interface AIConsultantProps {
 
 const AIConsultant: React.FC<AIConsultantProps> = ({ onClose, medications, sales, customers, currentUser }) => {
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'bot', content: `¡Hola ${currentUser.name}! Soy el Asistente de FarmaSalud ERP. Tengo acceso a los datos de inventario, ventas y clientes. ¿En qué puedo ayudarte con la gestión de la farmacia hoy?` }
+    { role: 'bot', content: `¡Hola ${currentUser.name}! Soy el Asistente de FarmaPOS. Tengo acceso a los datos de inventario, ventas y clientes. ¿En qué puedo ayudarte con la gestión de la farmacia hoy?` }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -143,7 +143,7 @@ const AIConsultant: React.FC<AIConsultantProps> = ({ onClose, medications, sales
             </div>
             <div>
               <h2 className="font-bold text-lg leading-none mb-1 flex items-center gap-2">
-                Asistente FarmaSalud
+                Asistente FarmaPOS
                 <Sparkles className="w-4 h-4 text-emerald-200" />
               </h2>
               <p className="text-emerald-100 text-xs flex items-center gap-1">

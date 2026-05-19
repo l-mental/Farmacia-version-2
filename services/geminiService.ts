@@ -1,5 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
+import { PrescriptionAnalysis } from '@/types';
 
 // Removed intermediate variable and used process.env.API_KEY directly in the functions below
 
@@ -9,7 +10,7 @@ export const getGeminiHealthAdvice = async (query: string) => {
   try {
     /* Fix: Separated system instruction from user content for better model steering */
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-1.5-flash',
       contents: query,
       config: {
         systemInstruction: "Eres un asistente farmacéutico experto. Responde a la siguiente duda de salud de forma profesional, clara y siempre incluyendo un aviso de que no sustituyes a un médico.",
@@ -23,12 +24,13 @@ export const getGeminiHealthAdvice = async (query: string) => {
   }
 };
 
-export const analyzePrescription = async (base64Data: string) => {
+
+export const analyzePrescription = async (base64Data: string): Promise<PrescriptionAnalysis> => {
   const apiKey = localStorage.getItem('CUSTOM_GEMINI_API_KEY') || process.env.API_KEY || process.env.GEMINI_API_KEY;
   const ai = new GoogleGenAI({ apiKey: apiKey || '' });
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-1.5-flash',
       contents: {
         parts: [
           { inlineData: { mimeType: 'image/jpeg', data: base64Data } }
@@ -82,10 +84,10 @@ export const getSystemAssistantResponse = async (query: string, systemData: any)
   try {
     const systemContext = JSON.stringify(systemData, null, 2);
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-1.5-flash',
       contents: query,
       config: {
-        systemInstruction: `Eres el Asistente Inteligente de FarmaSalud Enterprise ERP. 
+        systemInstruction: `Eres el Asistente Inteligente de FarmaPOS Enterprise ERP. 
         Tu objetivo es ayudar al personal de la farmacia con información del sistema.
         
         TIENES ACCESO A LOS SIGUIENTES DATOS EN TIEMPO REAL:

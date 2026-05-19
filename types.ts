@@ -19,6 +19,7 @@ export interface User {
   password?: string;
   phone?: string;
   email?: string;
+  originalRole?: UserRole;
 }
 
 export interface Batch {
@@ -113,6 +114,31 @@ export interface Supplier {
   status: 'active' | 'inactive';
   registrationDate: string;
   lastUpdate: string;
+}
+
+export type PurchaseStatus = 'Completado' | 'Pendiente' | 'Cancelado';
+
+export interface PurchaseItem {
+  medicationId: string;
+  medicationName: string;
+  quantity: number;
+  costPrice: number;
+  lotNumber: string;
+  expiryDate: string;
+  subtotal: number;
+}
+
+export interface Purchase {
+  id: string;
+  timestamp: string;
+  invoiceNumber: string;
+  supplierId: string;
+  supplierName: string;
+  warehouseName: string;
+  total: number;
+  status: PurchaseStatus;
+  items: PurchaseItem[];
+  registrationDate: string;
 }
 
 declare global {

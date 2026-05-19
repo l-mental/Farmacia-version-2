@@ -1,6 +1,6 @@
 
-import React from 'react';
-import { X, Trash2, Plus, Bot } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Trash2, Plus, Bot, RotateCcw } from 'lucide-react';
 import { Currency } from '@/types';
 import { SUPPORTED_CURRENCIES } from '@/constants';
 
@@ -11,11 +11,15 @@ interface SettingsModalProps {
   setCurrency: (c: Currency) => void;
   businessQR: string | null;
   setBusinessQR: (qr: string | null) => void;
+  onResetData: () => void;
+  currentUserRole?: string;
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ 
-  isOpen, onClose, currency, setCurrency, businessQR, setBusinessQR 
+  isOpen, onClose, currency, setCurrency, businessQR, setBusinessQR, onResetData, currentUserRole = 'ADMIN'
 }) => {
+  const [resetSuccess, setResetSuccess] = useState(false);
+
   if (!isOpen) return null;
 
   return (
@@ -103,6 +107,40 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
               <p className="text-[9px] text-slate-400 text-center italic">Este QR se mostrará a los clientes cuando elijan pago por QR.</p>
             </div>
           </div>
+
+          {currentUserRole === 'ADMIN' && (
+            <div className="pt-6 border-t border-slate-100">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Mantenimiento de Datos</label>
+              <div className="bg-rose-50 border border-rose-100 p-5 rounded-3xl space-y-3">
+                <p className="text-xs text-rose-800 font-medium leading-relaxed">
+                  ¿La base de datos local no es la última versión? Restablécela para cargar instantáneamente los 15 medicamentos de La Paz, 15 clientes, 15 proveedores y 15 ventas predefinidas para la demo.
+                </p>
+                
+                {resetSuccess ? (
+                  <div className="bg-emerald-500 text-white p-3 rounded-xl text-center text-xs font-bold uppercase tracking-wider animate-pulse">
+                    ✅ Datos restablecidos con éxito
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => {
+                      if (confirm('¿Estás seguro de restablecer todos los registros locales a su estado inicial de 15 datos demo?')) {
+                        onResetData();
+                        setResetSuccess(true);
+                        setTimeout(() => {
+                          setResetSuccess(false);
+                          onClose();
+                        }, 1500);
+                      }
+                    }}
+                    className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-2xl shadow-xl shadow-rose-600/30 flex items-center justify-center gap-2 transition-all text-xs uppercase tracking-widest"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Restablecer 15 Registros Demo
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

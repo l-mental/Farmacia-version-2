@@ -5,7 +5,7 @@ import {
   Package, AlertTriangle, Calendar, Activity, 
   ShieldCheck, Save, Image as ImageIcon, 
   FileText, Hash, DollarSign, ChevronRight,
-  Upload, Download
+  Upload, Download, Lock
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Medication, Category, Batch } from '@/types';
@@ -16,9 +16,10 @@ interface InventoryManagerProps {
   onUpdate: (med: Medication) => void;
   onDelete: (id: string) => void;
   currencySymbol: string;
+  currentUserRole?: 'ADMIN' | 'EMPLOYEE' | 'PHARMACIST';
 }
 
-const InventoryManager: React.FC<InventoryManagerProps> = ({ medications, onAdd, onUpdate, onDelete, currencySymbol }) => {
+const InventoryManager: React.FC<InventoryManagerProps> = ({ medications, onAdd, onUpdate, onDelete, currencySymbol, currentUserRole = 'ADMIN' }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingMed, setEditingMed] = useState<Medication | null>(null);
@@ -155,7 +156,7 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({ medications, onAdd,
       ...formData as Medication, 
       priceUnit,
       stockUnits: (formData.stockBoxes || 0) * units,
-      batches: finalBatches,
+      batches: finalBatches.length > 0 ? finalBatches : [{ lotNumber: 'S/L', expiryDate: '2026-12-31', quantity: (formData.stockBoxes || 0) * units }],
       id: editingMed ? editingMed.id : Date.now().toString() 
     };
     
@@ -174,73 +175,85 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({ medications, onAdd,
   };
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 bg-slate-50 min-h-full pb-28 md:pb-12">
+    <div className="p-3 md:p-4 lg:p-6 bg-slate-50 min-h-full pb-28 md:pb-12">
       <div className="max-w-7xl mx-auto">
-        <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-8 md:mb-10">
+        <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 mb-4 md:mb-6">
           <div className="space-y-1">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 md:p-3 bg-emerald-600 rounded-2xl shadow-lg shadow-emerald-200">
-                <Package className="text-white w-6 h-6 md:w-7 md:h-7"/>
+              <div className="p-2 md:p-2.5 bg-emerald-600 rounded-xl shadow-lg shadow-emerald-200">
+                <Package className="text-white w-5 h-5 md:w-6 md:h-6"/>
               </div>
-              <h1 className="text-2xl md:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight">
+              <h1 className="text-xl md:text-2xl lg:text-3xl font-black text-slate-900 tracking-tight">
                 Control de Stock
               </h1>
             </div>
-            <p className="text-slate-400 text-xs md:text-sm lg:text-base font-medium ml-1">
+            <p className="text-slate-400 text-[10px] md:text-xs font-medium ml-1">
               Supervisión de existencias, lotes y trazabilidad de productos.
             </p>
           </div>
 
-          <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full lg:w-auto">
-            <div className="relative flex-1 lg:min-w-[350px]">
+          <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2 w-full lg:w-auto">
+            <div className="relative flex-1 lg:min-w-[300px]">
               <input 
                 type="text" 
                 placeholder="Buscar por nombre o genérico..." 
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="w-full pl-11 pr-4 py-3.5 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all shadow-sm text-sm font-medium"
+                className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all shadow-sm text-xs font-medium"
               />
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"/>
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"/>
             </div>
             
-            <div className="grid grid-cols-3 md:flex items-center gap-2">
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleImportExcel} 
-                accept=".xlsx, .xls" 
-                className="hidden" 
-              />
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                className="bg-white border border-slate-200 text-slate-600 p-3.5 md:px-5 md:py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-50 hover:border-slate-300 transition-all text-sm shadow-sm active:scale-95"
-                title="Importar desde Excel"
-              >
-                <Upload className="w-4 h-4 text-emerald-600"/> 
-                <span className="hidden sm:inline">Importar</span>
-              </button>
-              
-              <button 
-                onClick={downloadTemplate}
-                className="bg-white border border-slate-200 text-slate-600 p-3.5 md:px-5 md:py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-50 hover:border-slate-300 transition-all text-sm shadow-sm active:scale-95"
-                title="Descargar Plantilla"
-              >
-                <Download className="w-4 h-4 text-blue-600"/> 
-                <span className="hidden sm:inline">Plantilla</span>
-              </button>
+            {currentUserRole === 'ADMIN' && (
+              <div className="grid grid-cols-3 md:flex items-center gap-2">
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleImportExcel} 
+                  accept=".xlsx, .xls" 
+                  className="hidden" 
+                />
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="bg-white border border-slate-200 text-slate-600 p-2.5 md:px-4 md:py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-50 hover:border-slate-300 transition-all text-xs shadow-sm active:scale-95"
+                  title="Importar desde Excel"
+                >
+                  <Upload className="w-3.5 h-3.5 text-emerald-600"/> 
+                  <span className="hidden sm:inline">Importar</span>
+                </button>
+                
+                <button 
+                  onClick={downloadTemplate}
+                  className="bg-white border border-slate-200 text-slate-600 p-2.5 md:px-4 md:py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-50 hover:border-slate-300 transition-all text-xs shadow-sm active:scale-95"
+                  title="Descargar Plantilla"
+                >
+                  <Download className="w-3.5 h-3.5 text-blue-600"/> 
+                  <span className="hidden sm:inline">Plantilla</span>
+                </button>
 
-              <button 
-                onClick={openAddModal}
-                className="bg-slate-900 hover:bg-black text-white p-3.5 md:px-6 md:py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-xl shadow-slate-200 text-sm whitespace-nowrap active:scale-95"
-              >
-                <Plus className="w-5 h-5 text-emerald-400"/> 
-                <span>Nuevo</span>
-              </button>
-            </div>
+                <button 
+                  onClick={openAddModal}
+                  className="bg-slate-900 hover:bg-black text-white p-2.5 md:px-5 md:py-2.5 rounded-xl font-black flex items-center justify-center gap-2 transition-all shadow-xl shadow-slate-200 text-xs whitespace-nowrap active:scale-95"
+                >
+                  <Plus className="w-4 h-4 text-emerald-400"/> 
+                  <span>Nuevo</span>
+                </button>
+              </div>
+            )}
           </div>
         </header>
 
-        <div className="grid grid-cols-1 gap-4 md:gap-6">
+        {currentUserRole !== 'ADMIN' && (
+          <div className="bg-amber-500/10 border border-amber-500/15 p-4 rounded-2xl flex items-center gap-3 text-amber-900 text-xs font-semibold mb-6">
+            <Lock className="w-5 h-5 text-amber-500 shrink-0" />
+            <div>
+              <p className="font-extrabold text-amber-800">Modo de Consulta Limitado</p>
+              <p className="text-amber-700/80 font-bold">Como Empleado, puedes consultar y buscar medicamentos para ventas pero no posees autorización para crear, importar o modificar el inventario.</p>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-2 md:gap-3">
           {filtered.length === 0 ? (
             <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] p-12 md:p-20 border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-center">
               <div className="w-16 h-16 md:w-20 md:h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6">
@@ -251,80 +264,82 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({ medications, onAdd,
             </div>
           ) : (
             filtered.map(med => (
-              <div key={med.id} className="group bg-white rounded-[1.5rem] md:rounded-[2rem] lg:rounded-[2.5rem] p-4 md:p-6 border border-slate-200 shadow-sm hover:shadow-xl hover:border-emerald-500/30 transition-all duration-500 flex flex-col md:flex-row gap-4 md:gap-6 md:items-center relative overflow-hidden">
+              <div key={med.id} className="group bg-white rounded-xl md:rounded-2xl p-2.5 md:p-3 border border-slate-200 shadow-sm hover:shadow-md hover:border-emerald-500/30 transition-all duration-300 flex flex-col md:flex-row gap-3 md:gap-4 md:items-center relative overflow-hidden">
                 {/* Background Decor */}
-                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-emerald-500/10 transition-colors" />
+                <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/3 rounded-full -mr-12 -mt-12 blur-xl group-hover:bg-emerald-500/5 transition-colors" />
                 
-                <div className="flex items-center gap-4 md:gap-5 w-full md:w-auto md:min-w-[280px] lg:min-w-[320px]">
-                  <div className="w-14 h-14 md:w-20 md:h-20 bg-slate-50 rounded-xl md:rounded-3xl flex items-center justify-center border border-slate-100 shrink-0 overflow-hidden shadow-inner group-hover:scale-105 transition-transform duration-500">
+                <div className="flex items-center gap-3 md:gap-4 w-full md:w-auto md:min-w-[240px] lg:min-w-[280px]">
+                  <div className="w-10 h-10 md:w-14 md:h-14 bg-slate-50 rounded-lg md:rounded-xl flex items-center justify-center border border-slate-100 shrink-0 overflow-hidden shadow-inner group-hover:scale-105 transition-transform duration-300">
                     <img src={med.imageUrl} alt="" className="w-full h-full object-cover" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="px-2 py-0.5 bg-slate-100 rounded-md text-[8px] font-black text-slate-500 uppercase tracking-widest">{med.category}</span>
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="px-1.5 py-0 bg-slate-100 rounded text-[7px] font-black text-slate-500 uppercase tracking-widest">{med.category}</span>
                       {med.isControlled && (
-                        <span className="px-2 py-0.5 bg-rose-50 text-rose-600 rounded-md text-[8px] font-black uppercase tracking-widest flex items-center gap-1">
-                          <ShieldCheck className="w-2.5 h-2.5"/> Controlado
+                        <span className="px-1.5 py-0 bg-rose-50 text-rose-600 rounded text-[7px] font-black uppercase tracking-widest flex items-center gap-0.5">
+                          <ShieldCheck className="w-2 h-2"/> CTRL
                         </span>
                       )}
                     </div>
-                    <h3 className="text-base md:text-lg lg:text-xl font-black text-slate-800 truncate group-hover:text-emerald-600 transition-colors">{med.name}</h3>
-                    <p className="text-[10px] md:text-xs text-slate-400 font-bold uppercase tracking-tight truncate">{med.genericName}</p>
+                    <h3 className="text-sm md:text-base font-black text-slate-800 truncate group-hover:text-emerald-600 transition-colors uppercase">{med.name}</h3>
+                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight truncate">{med.genericName}</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 w-full flex-1 md:border-l md:border-slate-100 md:pl-6 lg:pl-8">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 w-full flex-1 md:border-l md:border-slate-100 md:pl-4 lg:pl-6">
                   <div className="flex flex-col justify-center">
-                    <span className="text-[8px] md:text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] mb-1">Precio Unitario</span>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-[10px] md:text-xs font-black text-slate-400">{currencySymbol}</span>
-                      <span className="text-lg md:text-xl font-black text-slate-800 tracking-tight">{med.priceUnit}</span>
+                    <span className="text-[7px] md:text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Precio Unitario</span>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-[8px] md:text-[9px] font-black text-slate-400">{currencySymbol}</span>
+                      <span className="text-sm md:text-base font-black text-slate-800 tracking-tight">{med.priceUnit}</span>
                     </div>
                   </div>
 
                   <div className="flex flex-col justify-center">
-                    <span className="text-[8px] md:text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] mb-1">Existencias</span>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-sm md:text-base lg:text-lg font-black ${med.stockBoxes <= med.minStock ? 'text-rose-600' : 'text-slate-800'}`}>
-                        {med.stockBoxes} <span className="text-[8px] md:text-[10px] opacity-40">CAJAS</span>
+                    <span className="text-[7px] md:text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Existencias</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`text-xs md:text-sm font-black ${med.stockBoxes <= med.minStock ? 'text-rose-600' : 'text-slate-800'}`}>
+                        {med.stockBoxes} <span className="text-[7px] md:text-[8px] opacity-40 uppercase">CJs</span>
                       </span>
-                      <div className="w-1 h-1 bg-slate-200 rounded-full" />
-                      <span className="text-[10px] md:text-xs font-bold text-slate-400">{med.stockUnits} <span className="text-[8px] opacity-60">UDS</span></span>
+                      <div className="w-0.5 h-0.5 bg-slate-200 rounded-full" />
+                      <span className="text-[9px] font-bold text-slate-400">{med.stockUnits} <span className="text-[7px] opacity-60">UDS</span></span>
                     </div>
                   </div>
 
-                  <div className="hidden lg:flex flex-col justify-center">
-                    <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] mb-1">Laboratorio</span>
-                    <span className="text-sm font-bold text-slate-600 truncate">{med.laboratory}</span>
+                  <div className="flex flex-col justify-center">
+                    <span className="text-[7px] md:text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Laboratorio</span>
+                    <span className="text-[11px] font-bold text-slate-600 truncate">{med.laboratory || 'N/A'}</span>
                   </div>
 
                   <div className="flex flex-col justify-center">
-                    <span className="text-[8px] md:text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] mb-1">Vencimiento</span>
-                    <div className="flex items-center gap-2">
-                      <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${getExpiryStatus(med.batches[0]?.expiryDate).color} shadow-sm`} />
-                      <span className={`text-xs md:text-sm font-bold ${getExpiryStatus(med.batches[0]?.expiryDate).label === 'Vencido' ? 'text-rose-600' : 'text-slate-600'}`}>
+                    <span className="text-[7px] md:text-[8px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Vencimiento</span>
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-1.5 h-1.5 rounded-full ${getExpiryStatus(med.batches[0]?.expiryDate).color} shadow-sm`} />
+                      <span className={`text-[11px] font-bold ${getExpiryStatus(med.batches[0]?.expiryDate).label === 'Vencido' ? 'text-rose-600' : 'text-slate-600'}`}>
                         {med.batches[0]?.expiryDate || 'N/A'}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                <div className="flex md:flex-col gap-2 w-full md:w-auto border-t md:border-t-0 md:border-l md:border-slate-100 pt-4 md:pt-0 md:pl-4 lg:pl-6 justify-end">
-                  <button 
-                    onClick={() => openEditModal(med)}
-                    className="flex-1 md:flex-none p-2.5 md:p-3 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl md:rounded-2xl transition-all border border-slate-100 hover:border-emerald-200 flex items-center justify-center gap-2 font-bold text-xs"
-                  >
-                    <Edit2 className="w-3.5 h-3.5 md:w-4 md:h-4"/>
-                    <span className="md:hidden lg:hidden">Editar</span>
-                  </button>
-                  <button 
-                    onClick={() => onDelete(med.id)}
-                    className="flex-1 md:flex-none p-2.5 md:p-3 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl md:rounded-2xl transition-all border border-slate-100 hover:border-rose-200 flex items-center justify-center gap-2 font-bold text-xs"
-                  >
-                    <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4"/>
-                    <span className="md:hidden lg:hidden">Eliminar</span>
-                  </button>
-                </div>
+                {currentUserRole === 'ADMIN' && (
+                  <div className="flex md:flex-col gap-1.5 w-full md:w-auto border-t md:border-t-0 md:border-l md:border-slate-100 pt-2 md:pt-0 md:pl-3 lg:pl-4 justify-end">
+                    <button 
+                      onClick={() => openEditModal(med)}
+                      className="flex-1 md:flex-none p-1.5 md:p-2 text-slate-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-all border border-slate-100 hover:border-emerald-200 flex items-center justify-center gap-1.5 font-bold text-[10px]"
+                    >
+                      <Edit2 className="w-3.5 h-3.5"/>
+                      <span className="md:hidden lg:hidden">Editar</span>
+                    </button>
+                    <button 
+                      onClick={() => onDelete(med.id)}
+                      className="flex-1 md:flex-none p-1.5 md:p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all border border-slate-100 hover:border-rose-200 flex items-center justify-center gap-1.5 font-bold text-[10px]"
+                    >
+                      <Trash2 className="w-3.5 h-3.5"/>
+                      <span className="md:hidden lg:hidden">Borrar</span>
+                    </button>
+                  </div>
+                )}
               </div>
             ))
           )}
@@ -390,8 +405,8 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({ medications, onAdd,
                           <input 
                             type="text" 
                             placeholder="Pegar URL de imagen..." 
-                            value={formData.imageUrl}
-                            onChange={v => setFormData({...formData, imageUrl: v.target.value})}
+                            value={formData.imageUrl || ''}
+                            onChange={e => setFormData({...formData, imageUrl: e.target.value})}
                             className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl outline-none text-[10px] font-bold focus:ring-2 focus:ring-emerald-500/20"
                           />
                           <div className="relative">
@@ -518,13 +533,22 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({ medications, onAdd,
   );
 };
 
-const InputGroup = ({ label, value, onChange, type = "text", step, placeholder }: any) => (
+interface InputGroupProps {
+  label: string;
+  value: string | undefined;
+  onChange: (val: string) => void;
+  type?: string;
+  step?: string;
+  placeholder?: string;
+}
+
+const InputGroup: React.FC<InputGroupProps> = ({ label, value, onChange, type = "text", step, placeholder }) => (
   <div className="flex flex-col gap-2">
     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{label}</label>
     <input 
       type={type} 
       step={step}
-      value={value} 
+      value={value || ''} 
       placeholder={placeholder}
       onChange={e => onChange(e.target.value)}
       className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 text-sm font-bold text-slate-700 transition-all placeholder:text-slate-300" 

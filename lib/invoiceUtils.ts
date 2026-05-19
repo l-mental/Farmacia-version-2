@@ -1,7 +1,7 @@
 
 import { jsPDF } from 'jspdf';
-import { SaleRecord } from '../types';
-
+import { SaleRecord } from '@/types';
+import QRCode from 'qrcode';
 import * as XLSX from 'xlsx';
 
 /**
@@ -51,7 +51,7 @@ export const numberToWords = (num: number): string => {
 /**
  * Generates a Bolivian style invoice PDF (Ticket Style 80mm)
  */
-export const generateBolivianInvoice = (sale: SaleRecord, currencySymbol: string) => {
+export const generateBolivianInvoice = async (sale: SaleRecord, currencySymbol: string) => {
   const width = 80; // 80mm standard thermal paper
   const height = 180 + (sale.items.length * 10);
   const doc = new jsPDF({
@@ -155,11 +155,29 @@ export const generateBolivianInvoice = (sale: SaleRecord, currencySymbol: string
   doc.text('FECHA LÍMITE DE EMISIÓN: 31/12/2026', margin, y);
   y += 8;
 
-  // QR Code Placeholder
-  doc.rect(width / 2 - 10, y, 20, 20);
-  doc.setFontSize(5);
-  doc.text('ESPACIO PARA QR', width / 2, y + 10, { align: 'center' });
-  y += 25;
+  // QR Code Generation
+  try {
+    const nitEmisor = '1020304050';
+    const nroFactura = sale.id.replace(/\D/g, '').substring(0, 6);
+    const nroAutorizacion = '29040011007';
+    const fechaEmision = new Date(sale.timestamp).toLocaleDateString('es-BO');
+    const total = sale.total.toFixed(2);
+    const baseCreditoFiscal = sale.total.toFixed(2);
+    const codigoControl = '6A-7B-8C-9D';
+    const nitCliente = '1234567';
+    
+    const qrString = `${nitEmisor}|${nroFactura}|${nroAutorizacion}|${fechaEmision}|${total}|${baseCreditoFiscal}|${codigoControl}|${nitCliente}|0|0|0|0`;
+    
+    const qrDataUrl = await QRCode.toDataURL(qrString, { margin: 1, width: 100 });
+    doc.addImage(qrDataUrl, 'PNG', width / 2 - 12.5, y, 25, 25);
+  } catch (err) {
+    console.error('Error generating QR code', err);
+    doc.rect(width / 2 - 10, y, 20, 20);
+    doc.setFontSize(5);
+    doc.text('ERROR QR', width / 2, y + 10, { align: 'center' });
+  }
+  
+  y += 30;
 
   // Legend
   doc.setFontSize(6);

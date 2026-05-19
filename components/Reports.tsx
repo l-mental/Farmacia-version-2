@@ -1,19 +1,58 @@
 
 import React, { useState } from 'react';
-import { BarChart3, Download, FileSpreadsheet, PieChart, TrendingUp, Users, Calendar, ShoppingBag, User, ChevronRight, X, Pill, Clock, CreditCard, Search, ShieldCheck, Printer } from 'lucide-react';
+import { BarChart3, Download, FileSpreadsheet, PieChart, TrendingUp, Users, Calendar, ShoppingBag, User, ChevronRight, X, Pill, Clock, CreditCard, Search, ShieldCheck, Printer, Lock } from 'lucide-react';
 import { SaleRecord } from '@/types';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
-import { generateBolivianInvoice } from '../lib/invoiceUtils';
+import { generateBolivianInvoice } from '@/lib/invoiceUtils';
 
 interface ReportsProps {
   sales: SaleRecord[];
   currencySymbol: string;
+  currentUserRole?: string;
 }
 
-const Reports: React.FC<ReportsProps> = ({ sales, currencySymbol }) => {
+const Reports: React.FC<ReportsProps> = ({ sales, currencySymbol, currentUserRole = 'ADMIN' }) => {
   const [filterPatient, setFilterPatient] = useState('');
   const [selectedSale, setSelectedSale] = useState<SaleRecord | null>(null);
+
+  if (currentUserRole !== 'ADMIN') {
+    return (
+      <div className="p-6 md:p-10 max-w-4xl mx-auto text-center space-y-8 py-16 animate-in fade-in duration-500">
+        <div className="inline-flex bg-amber-500/10 text-amber-500 p-6 rounded-full border border-amber-500/10 shadow-lg shadow-amber-500/5 animate-bounce-subtle">
+          <Lock className="w-14 h-14" />
+        </div>
+        <div className="space-y-3">
+          <h2 className="text-3xl font-black text-slate-800 tracking-tight">Acceso Restringido: <span className="text-emerald-600">Reportes Financieros</span></h2>
+          <p className="text-slate-500 max-w-lg mx-auto leading-relaxed text-sm">
+            Tu usuario actual posee privilegios de <strong className="text-slate-700">Empleado / Vendedor</strong>. El acceso a las métricas del balance, rentabilidad total e historial de transacciones detallado está reservado para la gerencia.
+          </p>
+        </div>
+        
+        <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 max-w-md mx-auto text-left space-y-4 shadow-sm">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Protección de Datos & Seguridad:</p>
+          <ul className="space-y-3 text-xs text-slate-600 font-bold">
+            <li className="flex items-center gap-2">
+              <span className="w-1.5 h-1.5 bg-rose-500 rounded-full shrink-0" />
+              <span>Gráficos de Tendencias de Ventas e Ingresos Netos</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="w-1.5 h-1.5 bg-rose-500 rounded-full shrink-0" />
+              <span>Exportación a Formatos Excel y Balances de Caja</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="w-1.5 h-1.5 bg-rose-500 rounded-full shrink-0" />
+              <span>Historial Sanitario y Detalles de Medicamentos Controlados</span>
+            </li>
+          </ul>
+        </div>
+
+        <p className="text-xs text-slate-400 italic">
+          💡 Sugerencia: Puedes usar el selector interactivo de la barra superior para cambiar temporalmente a "Admin" y evaluar este módulo.
+        </p>
+      </div>
+    );
+  }
 
   const filteredSales = sales.filter(sale => 
     sale.customerName?.toLowerCase().includes(filterPatient.toLowerCase()) ||

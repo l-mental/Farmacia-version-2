@@ -12,13 +12,14 @@ import AIConsultant from '@/components/AIConsultant';
 import StaffManager from '@/components/StaffManager';
 import SuppliersManager from '@/components/SuppliersManager';
 import CustomersManager from '@/components/CustomersManager';
+import PurchasesManager from '@/components/PurchasesManager';
 import Sidebar from '@/components/layout/Sidebar';
 import AppHeader from '@/components/layout/AppHeader';
 import MobileNav from '@/components/layout/MobileNav';
 import SettingsModal from '@/components/modals/SettingsModal';
 import NewPatientModal from '@/components/modals/NewPatientModal';
 
-type TabType = 'DASHBOARD' | 'POS' | 'INVENTORY' | 'REPORTS' | 'CUSTOMERS' | 'STAFF' | 'SETTINGS' | 'SUPPLIERS';
+type TabType = 'DASHBOARD' | 'POS' | 'INVENTORY' | 'REPORTS' | 'CUSTOMERS' | 'STAFF' | 'SETTINGS' | 'SUPPLIERS' | 'PURCHASES';
 
 const AppContent: React.FC = () => {
   const {
@@ -28,24 +29,40 @@ const AppContent: React.FC = () => {
     staff,
     sales,
     suppliers,
+    purchases,
     currency,
     businessQR,
     isOnline,
+    darkMode,
     setMedications,
     setStaff,
     setSuppliers,
+    setPurchases,
     setCurrency,
     setBusinessQR,
+    setDarkMode,
     handleLogin,
     handleLogout,
+    handleSwitchRole,
     handleAddPatient,
-    handleCompleteSale
+    handleCompleteSale,
+    handleRegisterPurchase,
+    resetToMockData
   } = useFarmaData();
 
   const [isAIConsultantOpen, setIsAIConsultantOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNewPatientModalOpen, setIsNewPatientModalOpen] = useState(false);
   const location = useLocation();
+
+  // Apply dark mode class
+  React.useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
 
   if (!currentUser) {
     return <Login onLogin={handleLogin} />;
@@ -66,8 +83,13 @@ const AppContent: React.FC = () => {
           activeTab={activeTab}
           isOnline={isOnline}
           currency={currency}
+          darkMode={darkMode}
+          onToggleDarkMode={() => setDarkMode(!darkMode)}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onLogout={handleLogout}
+          currentUserRole={currentUser.role}
+          currentUserOriginalRole={currentUser.originalRole}
+          onSwitchRole={handleSwitchRole}
         />
 
         <div className="flex-1 overflow-y-auto">
@@ -91,15 +113,29 @@ const AppContent: React.FC = () => {
                   onUpdate={(m) => setMedications(prev => prev.map(x => x.id === m.id ? m : x))} 
                   onDelete={(id) => setMedications(prev => prev.filter(x => x.id !== id))}
                   currencySymbol={currency.symbol}
+                  currentUserRole={currentUser.role}
                 />
             } />
-            <Route path="/reports" element={<Reports sales={sales} currencySymbol={currency.symbol} />} />
+            <Route path="/reports" element={
+              currentUser.role === 'ADMIN' ? (
+                <Reports sales={sales} currencySymbol={currency.symbol} currentUserRole={currentUser.role} />
+              ) : <Navigate to="/dashboard" replace />
+            } />
             <Route path="/suppliers" element={
               <SuppliersManager 
                 suppliers={suppliers}
                 onAdd={(s) => setSuppliers(prev => [...prev, s])}
                 onUpdate={(s) => setSuppliers(prev => prev.map(x => x.id === s.id ? s : x))}
                 onDelete={(id) => setSuppliers(prev => prev.filter(x => x.id !== id))}
+              />
+            } />
+            <Route path="/purchases" element={
+              <PurchasesManager 
+                purchases={purchases}
+                suppliers={suppliers}
+                medications={medications}
+                onRegister={handleRegisterPurchase}
+                currencySymbol={currency.symbol}
               />
             } />
             <Route path="/customers" element={
@@ -118,6 +154,7 @@ const AppContent: React.FC = () => {
                   onUpdate={(u) => setStaff(prev => prev.map(x => x.id === u.id ? u : x))} 
                   onDelete={(id) => setStaff(prev => prev.filter(x => x.id !== id))}
                   sales={sales}
+                  currentUserRole={currentUser.role}
                 />
               ) : <Navigate to="/dashboard" replace />
             } />
@@ -166,6 +203,8 @@ const AppContent: React.FC = () => {
         setCurrency={setCurrency}
         businessQR={businessQR}
         setBusinessQR={setBusinessQR}
+        onResetData={resetToMockData}
+        currentUserRole={currentUser.role}
       />
 
       <NewPatientModal 

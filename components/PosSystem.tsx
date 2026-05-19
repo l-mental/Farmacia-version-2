@@ -168,20 +168,26 @@ const PosSystem: React.FC<PosSystemProps> = ({ medications, customers, onComplet
         <div className="flex-1 overflow-y-auto p-4 md:p-6 grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4 md:gap-6 pb-24 lg:pb-6">
           {filteredMeds.map(med => (
             <div key={med.id} className="group bg-white rounded-[2rem] p-5 border border-slate-200 shadow-sm hover:shadow-xl hover:border-emerald-500/30 transition-all duration-300 flex flex-col h-fit">
-              <div className="flex justify-between items-start mb-4">
-                <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-[8px] font-black text-slate-500 uppercase tracking-wider">{med.laboratory}</span>
-                {med.isControlled && (
-                  <span className="px-2 py-1 bg-rose-50 text-rose-600 rounded-lg text-[8px] font-black uppercase flex items-center gap-1 animate-pulse">
-                    <AlertCircle className="w-3 h-3"/> Controlado
-                  </span>
-                )}
+              <div className="flex gap-4 mb-4">
+                <div className="w-20 h-20 bg-slate-50 rounded-2xl flex items-center justify-center border border-slate-100 shrink-0 overflow-hidden shadow-inner group-hover:scale-110 transition-transform duration-500">
+                  <img src={med.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                    <span className="px-2 py-0.5 bg-slate-100 rounded-md text-[7px] font-black text-slate-500 uppercase tracking-widest">{med.laboratory}</span>
+                    {med.isControlled && (
+                      <span className="px-2 py-0.5 bg-rose-50 text-rose-600 rounded-md text-[7px] font-black uppercase tracking-widest flex items-center gap-1 animate-pulse">
+                        <AlertCircle className="w-2.5 h-2.5"/> CTRL
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="text-base font-black text-slate-800 leading-tight group-hover:text-emerald-600 transition-colors line-clamp-2 uppercase">{med.name}</h3>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight mt-1 truncate">{med.genericName}</p>
+                </div>
               </div>
               
               <div className="flex-1 mb-6">
-                <h3 className="text-lg font-black text-slate-800 leading-tight group-hover:text-emerald-600 transition-colors">{med.name}</h3>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tight mt-1">{med.genericName}</p>
-                
-                <div className="mt-4 flex items-center gap-2">
+                <div className="flex items-center gap-2">
                   <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden">
                     <div 
                       className={`h-full rounded-full ${med.stockBoxes < 10 ? 'bg-rose-500' : 'bg-emerald-500'}`}
@@ -316,9 +322,12 @@ const PosSystem: React.FC<PosSystemProps> = ({ medications, customers, onComplet
                     <Trash2 className="w-3.5 h-3.5"/>
                   </button>
                   
-                  <div className="flex justify-between items-start mb-3">
+                  <div className="flex justify-between items-start mb-3 gap-3">
+                    <div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center border border-slate-100 shrink-0 overflow-hidden shadow-inner">
+                      <img src={item.medication.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-black text-slate-800 text-sm truncate pr-2">{item.medication.name}</h4>
+                      <h4 className="font-black text-slate-800 text-sm truncate pr-2 uppercase">{item.medication.name}</h4>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter ${item.isFractional ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>
                           {item.isFractional ? 'Unidad' : 'Caja'}

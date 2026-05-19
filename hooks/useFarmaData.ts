@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
-import { Medication, User, SaleItem, InsurancePlan, Customer, SaleRecord, Currency, Supplier } from '../types';
-import { MOCK_MEDICATIONS, MOCK_CUSTOMERS, SUPPORTED_CURRENCIES } from '../constants';
+import { Medication, User, SaleItem, InsurancePlan, Customer, SaleRecord, Currency, Supplier, Purchase } from '@/types';
+import { MOCK_MEDICATIONS, MOCK_CUSTOMERS, SUPPORTED_CURRENCIES, MOCK_STAFF, MOCK_SUPPLIERS, MOCK_SALES, MOCK_PURCHASES } from '@/constants';
 
 export const useFarmaData = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -21,23 +21,22 @@ export const useFarmaData = () => {
 
   const [staff, setStaff] = useState<User[]>(() => {
     const saved = localStorage.getItem('FARMA_STAFF');
-    return saved ? JSON.parse(saved) : [
-      { id: 'U1', name: 'Admin Principal', username: 'admin', password: 'admin', phone: '999888777', role: 'ADMIN' },
-      { id: 'U2', name: 'Empleado Demo', username: 'empleado', password: '123', phone: '999000111', role: 'EMPLOYEE' }
-    ];
+    return saved ? JSON.parse(saved) : MOCK_STAFF;
   });
 
   const [sales, setSales] = useState<SaleRecord[]>(() => {
     const saved = localStorage.getItem('FARMA_SALES');
-    return saved ? JSON.parse(saved) : [];
+    return saved ? JSON.parse(saved) : MOCK_SALES;
   });
 
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
     const saved = localStorage.getItem('FARMA_SUPPLIERS');
-    return saved ? JSON.parse(saved) : [
-      { id: 'PROV-1', name: 'Droguería Inti', phone: '22233344', ci: '1234567 LP', address: 'Av. Blanco Galindo Km 5', status: 'active', registrationDate: '15/04/2026', lastUpdate: '15/04/2026' },
-      { id: 'PROV-2', name: 'LUBRAX', phone: '74504589', ci: 'N/A', address: 'N/A', status: 'active', registrationDate: '08/04/2026', lastUpdate: '08/04/2026' }
-    ];
+    return saved ? JSON.parse(saved) : MOCK_SUPPLIERS;
+  });
+
+  const [purchases, setPurchases] = useState<Purchase[]>(() => {
+    const saved = localStorage.getItem('FARMA_PURCHASES');
+    return saved ? JSON.parse(saved) : MOCK_PURCHASES;
   });
 
   const [currency, setCurrency] = useState<Currency>(() => {
@@ -47,6 +46,9 @@ export const useFarmaData = () => {
 
   const [businessQR, setBusinessQR] = useState<string | null>(() => localStorage.getItem('FARMA_QR'));
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    return localStorage.getItem('FARMA_DARK_MODE') === 'true';
+  });
 
   // Persistence Effects
   useEffect(() => {
@@ -70,8 +72,16 @@ export const useFarmaData = () => {
   }, [suppliers]);
 
   useEffect(() => {
+    localStorage.setItem('FARMA_PURCHASES', JSON.stringify(purchases));
+  }, [purchases]);
+
+  useEffect(() => {
     localStorage.setItem('FARMA_CURRENCY', JSON.stringify(currency));
   }, [currency]);
+
+  useEffect(() => {
+    localStorage.setItem('FARMA_DARK_MODE', darkMode.toString());
+  }, [darkMode]);
 
   useEffect(() => {
     const handleStatusChange = () => setIsOnline(navigator.onLine);
@@ -91,6 +101,13 @@ export const useFarmaData = () => {
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem('FARMA_USER');
+  };
+
+  const handleSwitchRole = (role: 'ADMIN' | 'EMPLOYEE' | 'PHARMACIST') => {
+    if (!currentUser) return;
+    const updatedUser: User = { ...currentUser, role };
+    setCurrentUser(updatedUser);
+    localStorage.setItem('FARMA_USER', JSON.stringify(updatedUser));
   };
 
   const handleAddPatient = (patient: Customer) => {
@@ -157,6 +174,61 @@ export const useFarmaData = () => {
     return newSale;
   };
 
+  const handleRegisterPurchase = (purchase: Purchase) => {
+    setPurchases(prev => [purchase, ...prev]);
+    
+    // Update inventory
+    const updatedMeds = medications.map(med => {
+      const item = purchase.items.find(i => i.medicationId === med.id);
+      if (item) {
+        const newBatches = [...med.batches];
+        const batchIdx = newBatches.findIndex(b => b.lotNumber === item.lotNumber);
+        
+        const addedUnits = item.quantity * med.unitsPerBox;
+        
+        if (batchIdx !== -1) {
+          newBatches[batchIdx] = {
+            ...newBatches[batchIdx],
+            quantity: newBatches[batchIdx].quantity + addedUnits,
+            expiryDate: item.expiryDate
+          };
+        } else {
+          newBatches.push({
+            lotNumber: item.lotNumber,
+            expiryDate: item.expiryDate,
+            quantity: addedUnits
+          });
+        }
+
+        const totalUnits = newBatches.reduce((sum, b) => sum + b.quantity, 0);
+        return {
+          ...med,
+          batches: newBatches,
+          stockBoxes: Math.floor(totalUnits / med.unitsPerBox),
+          stockUnits: totalUnits
+        };
+      }
+      return med;
+    });
+    setMedications(updatedMeds);
+  };
+
+  const resetToMockData = () => {
+    localStorage.removeItem('FARMA_MEDS');
+    localStorage.removeItem('FARMA_CUSTOMERS');
+    localStorage.removeItem('FARMA_STAFF');
+    localStorage.removeItem('FARMA_SALES');
+    localStorage.removeItem('FARMA_SUPPLIERS');
+    localStorage.removeItem('FARMA_PURCHASES');
+    
+    setMedications(MOCK_MEDICATIONS);
+    setCustomers(MOCK_CUSTOMERS);
+    setStaff(MOCK_STAFF);
+    setSales(MOCK_SALES);
+    setSuppliers(MOCK_SUPPLIERS);
+    setPurchases(MOCK_PURCHASES);
+  };
+
   return {
     currentUser,
     medications,
@@ -164,19 +236,26 @@ export const useFarmaData = () => {
     staff,
     sales,
     suppliers,
+    purchases,
     currency,
     businessQR,
     isOnline,
+    darkMode,
     setMedications,
     setCustomers,
     setStaff,
     setSales,
     setSuppliers,
+    setPurchases,
     setCurrency,
     setBusinessQR,
+    setDarkMode,
     handleLogin,
     handleLogout,
+    handleSwitchRole,
     handleAddPatient,
-    handleCompleteSale
+    handleCompleteSale,
+    handleRegisterPurchase,
+    resetToMockData
   };
 };

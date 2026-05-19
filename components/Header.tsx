@@ -16,7 +16,7 @@ const Header: React.FC<HeaderProps> = ({ cartCount, onOpenCart, onOpenAI }) => {
           <div className="bg-emerald-600 p-2 rounded-lg">
             <HeartPulse className="text-white w-6 h-6" />
           </div>
-          <span className="text-xl font-bold text-slate-800 tracking-tight">FarmaSalud <span className="text-emerald-600">AI</span></span>
+          <span className="text-xl font-bold text-slate-800 tracking-tight">FarmaPOS</span>
         </div>
 
         <nav className="hidden md:flex items-center gap-8">
