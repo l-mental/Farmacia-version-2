@@ -29,6 +29,7 @@ const PosSystem: React.FC<PosSystemProps> = ({ medications, customers, onComplet
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
   const [lastSale, setLastSale] = useState<SaleRecord | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [newPatientData, setNewPatientData] = useState({ name: '', dni: '' });
 
@@ -55,10 +56,20 @@ const PosSystem: React.FC<PosSystemProps> = ({ medications, customers, onComplet
       );
       const price = isFractional ? med.priceUnit : med.priceBox;
       
+      const nextQuantity = existing ? existing.quantity + 1 : 1;
+      const requiredUnits = isFractional ? nextQuantity : nextQuantity * med.unitsPerBox;
+
+      if (availableBatch && requiredUnits > availableBatch.quantity) {
+        setErrorMsg(`Stock insuficiente en el lote ${selectedBatch}. Máximo disponible: ${isFractional ? availableBatch.quantity : Math.floor(availableBatch.quantity / med.unitsPerBox)} ${isFractional ? 'unidades' : 'cajas'}.`);
+        return prev;
+      }
+
+      setErrorMsg(null);
+
       if (existing) {
         return prev.map(item => 
           (item.medication.id === med.id && item.isFractional === isFractional && item.selectedBatch === selectedBatch) 
-            ? { ...item, quantity: item.quantity + 1, subtotal: (item.quantity + 1) * price } 
+            ? { ...item, quantity: nextQuantity, subtotal: nextQuantity * price } 
             : item
         );
       }
@@ -74,6 +85,7 @@ const PosSystem: React.FC<PosSystemProps> = ({ medications, customers, onComplet
 
   const removeFromCart = (index: number) => {
     setCart(prev => prev.filter((_, i) => i !== index));
+    setErrorMsg(null);
   };
 
   const updateCartQuantity = (index: number, delta: number) => {
@@ -88,10 +100,11 @@ const PosSystem: React.FC<PosSystemProps> = ({ medications, customers, onComplet
       const deltaInUnits = item.isFractional ? delta : delta * item.medication.unitsPerBox;
       
       if (batch && delta > 0 && (currentQtyInUnits + deltaInUnits) > batch.quantity) {
-        alert(`Stock insuficiente en el lote ${item.selectedBatch}. Máximo disponible: ${item.isFractional ? batch.quantity : Math.floor(batch.quantity / item.medication.unitsPerBox)}`);
+        setErrorMsg(`Stock insuficiente en el lote ${item.selectedBatch}. Máximo disponible: ${item.isFractional ? batch.quantity : Math.floor(batch.quantity / item.medication.unitsPerBox)} ${item.isFractional ? 'unidades' : 'cajas'}.`);
         return prev;
       }
 
+      setErrorMsg(null);
       item.quantity = Math.max(1, item.quantity + delta);
       item.subtotal = item.quantity * price;
       newCart[index] = item;
@@ -104,6 +117,9 @@ const PosSystem: React.FC<PosSystemProps> = ({ medications, customers, onComplet
       const newCart = [...prev];
       const item = { ...newCart[index] };
       
+      const targetBatch = item.medication.batches.find(b => b.lotNumber === newBatchLot);
+      if (!targetBatch) return prev;
+
       // Check if another item in cart already has this medication + fractional + new batch
       const existingIndex = prev.findIndex((it, idx) => 
         idx !== index && 
@@ -111,6 +127,16 @@ const PosSystem: React.FC<PosSystemProps> = ({ medications, customers, onComplet
         it.isFractional === item.isFractional && 
         it.selectedBatch === newBatchLot
       );
+
+      const totalQtyToAssign = existingIndex !== -1 ? item.quantity + prev[existingIndex].quantity : item.quantity;
+      const totalQtyToAssignInUnits = item.isFractional ? totalQtyToAssign : totalQtyToAssign * item.medication.unitsPerBox;
+
+      if (totalQtyToAssignInUnits > targetBatch.quantity) {
+        setErrorMsg(`No se puede cambiar al lote ${newBatchLot}. El stock total requerido (${totalQtyToAssign} ${item.isFractional ? 'unidades' : 'cajas'}) supera el stock disponible de ese lote (${item.isFractional ? targetBatch.quantity : Math.floor(targetBatch.quantity / item.medication.unitsPerBox)}).`);
+        return prev;
+      }
+
+      setErrorMsg(null);
 
       if (existingIndex !== -1) {
         // Merge them
@@ -130,13 +156,14 @@ const PosSystem: React.FC<PosSystemProps> = ({ medications, customers, onComplet
   const handleComplete = () => {
     const needsPrescription = cart.some(item => item.medication.isControlled);
     if (needsPrescription && (!prescription.doctorLicense || !prescription.patientName)) {
-      alert("Atención: Venta bloqueada. Se requiere completar los datos de la receta para medicamentos controlados.");
+      setErrorMsg("Atención: Venta bloqueada. Se requiere completar los datos de la receta para medicamentos controlados.");
       return;
     }
     const sale = onCompleteSale(cart, selectedInsurance, paymentMethod, selectedCustomer || undefined, needsPrescription ? prescription : undefined);
     setLastSale(sale);
     
     // Clear state and close modals
+    setErrorMsg(null);
     setCart([]);
     setPrescription({ doctorLicense: '', patientName: '', date: '' });
     setSelectedCustomer(null);
@@ -306,6 +333,23 @@ const PosSystem: React.FC<PosSystemProps> = ({ medications, customers, onComplet
 
         {/* Lista de Items */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {errorMsg && (
+            <div className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-2xl flex items-start gap-2.5 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
+              <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="font-extrabold text-xs text-rose-900 uppercase tracking-wider">Error de Validación</p>
+                <p className="text-xs font-bold leading-relaxed mt-0.5">{errorMsg}</p>
+              </div>
+              <button 
+                onClick={() => setErrorMsg(null)} 
+                className="text-rose-400 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-100 transition-colors shrink-0"
+                aria-label="Cerrar advertencia"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center opacity-20 italic py-10">
               <ShoppingBag className="w-10 h-10 mb-2"/>
@@ -429,6 +473,23 @@ const PosSystem: React.FC<PosSystemProps> = ({ medications, customers, onComplet
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 md:p-10 space-y-8 no-scrollbar">
+              {errorMsg && (
+                <div className="bg-rose-50 border border-rose-200 text-rose-800 p-5 rounded-3xl flex items-start gap-3 shadow-md animate-in fade-in duration-300">
+                  <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-extrabold text-xs text-rose-900 uppercase tracking-wider">Error de Validación</p>
+                    <p className="text-xs font-bold leading-relaxed mt-1">{errorMsg}</p>
+                  </div>
+                  <button 
+                    onClick={() => setErrorMsg(null)} 
+                    className="text-rose-400 hover:text-rose-600 p-1.5 rounded-xl hover:bg-rose-100 transition-colors shrink-0"
+                    aria-label="Cerrar advertencia"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12">
                 {/* Columna Izquierda: Datos de Pago y Receta */}
                 <div className="space-y-8">

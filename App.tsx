@@ -78,7 +78,7 @@ const AppContent: React.FC = () => {
         onLogout={handleLogout} 
       />
 
-      <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden pb-20 md:pb-0">
+      <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden pb-24 md:pb-0">
         <AppHeader 
           activeTab={activeTab}
           isOnline={isOnline}
