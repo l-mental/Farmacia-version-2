@@ -16,32 +16,74 @@ export const useFarmaData = () => {
 
   const [medications, setMedications] = useState<Medication[]>(() => {
     const saved = localStorage.getItem('FARMA_MEDS');
-    return saved ? JSON.parse(saved) : MOCK_MEDICATIONS;
+    if (saved !== null) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return MOCK_MEDICATIONS;
   });
 
   const [customers, setCustomers] = useState<Customer[]>(() => {
     const saved = localStorage.getItem('FARMA_CUSTOMERS');
-    return saved ? JSON.parse(saved) : MOCK_CUSTOMERS;
+    if (saved !== null) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return MOCK_CUSTOMERS;
   });
 
   const [staff, setStaff] = useState<User[]>(() => {
     const saved = localStorage.getItem('FARMA_STAFF');
-    return saved ? JSON.parse(saved) : MOCK_STAFF;
+    if (saved !== null) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return MOCK_STAFF;
   });
 
   const [sales, setSales] = useState<SaleRecord[]>(() => {
     const saved = localStorage.getItem('FARMA_SALES');
-    return saved ? JSON.parse(saved) : MOCK_SALES;
+    if (saved !== null) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return MOCK_SALES;
   });
 
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
     const saved = localStorage.getItem('FARMA_SUPPLIERS');
-    return saved ? JSON.parse(saved) : MOCK_SUPPLIERS;
+    if (saved !== null) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return MOCK_SUPPLIERS;
   });
 
   const [purchases, setPurchases] = useState<Purchase[]>(() => {
     const saved = localStorage.getItem('FARMA_PURCHASES');
-    return saved ? JSON.parse(saved) : MOCK_PURCHASES;
+    if (saved !== null) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return MOCK_PURCHASES;
   });
 
   const [currency, setCurrency] = useState<Currency>(() => {
@@ -247,6 +289,35 @@ export const useFarmaData = () => {
     setMedications(updatedMeds);
   };
 
+  const handleBatchAddMeds = (newMeds: Medication[]) => {
+    setMedications(prev => {
+      const merged = [...prev, ...newMeds];
+      localStorage.setItem('FARMA_MEDS', JSON.stringify(merged));
+      return merged;
+    });
+  };
+
+  const handleReplaceMeds = (newMeds: Medication[]) => {
+    setMedications(newMeds);
+    localStorage.setItem('FARMA_MEDS', JSON.stringify(newMeds));
+  };
+
+  const handleClearDemoData = () => {
+    setMedications([]);
+    setCustomers([]);
+    setSales([]);
+    setPurchases([]);
+    localStorage.setItem('FARMA_MEDS', JSON.stringify([]));
+    localStorage.setItem('FARMA_CUSTOMERS', JSON.stringify([]));
+    localStorage.setItem('FARMA_SALES', JSON.stringify([]));
+    localStorage.setItem('FARMA_PURCHASES', JSON.stringify([]));
+  };
+
+  const handleClearAllInventory = () => {
+    setMedications([]);
+    localStorage.setItem('FARMA_MEDS', JSON.stringify([]));
+  };
+
   const resetToMockData = () => {
     localStorage.removeItem('FARMA_MEDS');
     localStorage.removeItem('FARMA_CUSTOMERS');
@@ -296,6 +367,10 @@ export const useFarmaData = () => {
     handleAddPatient,
     handleCompleteSale,
     handleRegisterPurchase,
+    handleBatchAddMeds,
+    handleReplaceMeds,
+    handleClearDemoData,
+    handleClearAllInventory,
     resetToMockData
   };
 };

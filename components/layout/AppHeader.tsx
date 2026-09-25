@@ -97,38 +97,6 @@ const AppHeader: React.FC<AppHeaderProps> = ({
         </div>
       </div>
       <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
-        {/* Dynamic Interactive Role Switcher: Only visible if the logged user was originally an ADMIN (completely hidden for genuine employee logins) */}
-        {currentUserOriginalRole === 'ADMIN' && currentUserRole === 'ADMIN' && (
-          <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-inner">
-            <button
-              onClick={() => onSwitchRole('ADMIN')}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white shadow-md"
-              title="Administrador"
-            >
-              <Shield className="w-3 h-3" />
-              <span className="hidden sm:inline">Admin</span>
-            </button>
-            <button
-              onClick={() => onSwitchRole('EMPLOYEE')}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-500 hover:text-slate-800 transition-all"
-              title="Probar vista de Empleado / Cajero"
-            >
-              <UserIcon className="w-3 h-3" />
-              <span className="hidden sm:inline">Modo Cajero</span>
-            </button>
-          </div>
-        )}
-        {currentUserOriginalRole === 'ADMIN' && currentUserRole === 'EMPLOYEE' && (
-          <button
-            onClick={() => onSwitchRole('ADMIN')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider bg-slate-800 text-white shadow hover:bg-slate-700 transition-all"
-            title="Volver a Administrador"
-          >
-            <Shield className="w-3 h-3 text-emerald-400" />
-            <span className="hidden sm:inline">Volver a Admin</span>
-          </button>
-        )}
-
         {/* Stock & Expiration Alert Notification Bell */}
         <div className="relative">
           <button

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  X, Trash2, Plus, RotateCcw, Building2, Store, QrCode, 
+  X, Trash2, Plus, Building2, Store, QrCode, 
   Bell, Volume2, Vibrate, Smartphone, Monitor, Sparkles, Check
 } from 'lucide-react';
 import { Currency, PharmacyInfo } from '@/types';
@@ -16,7 +16,7 @@ interface SettingsModalProps {
   setBusinessQR: (qr: string | null) => void;
   pharmacyInfo?: PharmacyInfo;
   setPharmacyInfo?: (info: PharmacyInfo) => void;
-  onResetData: () => void;
+  onClearDemoData?: () => void;
   currentUserRole?: string;
   notificationSettings?: NotificationSettings;
   onUpdateNotificationSettings?: (settings: Partial<NotificationSettings>) => void;
@@ -27,12 +27,12 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ 
   isOpen, onClose, currency, setCurrency, businessQR, setBusinessQR, 
-  pharmacyInfo, setPharmacyInfo, onResetData, currentUserRole = 'ADMIN',
+  pharmacyInfo, setPharmacyInfo, onClearDemoData, currentUserRole = 'ADMIN',
   notificationSettings, onUpdateNotificationSettings, onTriggerTestAlert,
   permissionStatus, onRequestPermission
 }) => {
-  const [resetSuccess, setResetSuccess] = useState(false);
   const [testSent, setTestSent] = useState(false);
+  const [demoClearedMsg, setDemoClearedMsg] = useState(false);
   const [localPharmacy, setLocalPharmacy] = useState<PharmacyInfo>(pharmacyInfo || {
     name: 'FARMASALUD S.R.L.',
     commercialName: 'FARMACIA FARMASALUD BOLIVIA',
@@ -353,35 +353,38 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          {/* Reset Demo Data */}
-          {currentUserRole === 'ADMIN' && (
+          {/* Gestión de Datos / Inicio Limpio para Farmacia Real */}
+          {onClearDemoData && (
             <div className="pt-6 border-t border-slate-100">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Mantenimiento de Datos</label>
-              <div className="bg-rose-50 border border-rose-100 p-5 rounded-3xl space-y-3">
-                <p className="text-xs text-rose-800 font-medium leading-relaxed">
-                  ¿La base de datos local no es la última versión? Restablécela para cargar instantáneamente los 15 medicamentos de La Paz, 15 clientes, 15 proveedores y 15 ventas predefinidas para la demo.
-                </p>
-                
-                {resetSuccess ? (
-                  <div className="bg-emerald-500 text-white p-3 rounded-xl text-center text-xs font-bold uppercase tracking-wider animate-pulse">
-                    ✅ Datos restablecidos con éxito
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                Gestión de Datos (Para Farmacia en Producción)
+              </label>
+              <div className="p-4 bg-rose-50/50 border border-rose-100 rounded-2xl space-y-3">
+                <div>
+                  <h4 className="text-xs font-black text-slate-800">Limpieza de Datos de Prueba</h4>
+                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                    Si vas a usar el sistema para tu farmacia real en Vercel, puedes vaciar todos los datos demo de prueba (medicamentos, ventas de ejemplo y pacientes ficticios) para iniciar con tu inventario 100% limpio.
+                  </p>
+                </div>
+
+                {demoClearedMsg ? (
+                  <div className="p-3 bg-emerald-100 text-emerald-900 rounded-xl text-xs font-bold text-center">
+                    ¡Datos demo eliminados! Tu farmacia está limpia y lista.
                   </div>
                 ) : (
                   <button
+                    type="button"
                     onClick={() => {
-                      if (confirm('¿Estás seguro de restablecer todos los registros locales a su estado inicial de 15 datos demo?')) {
-                        onResetData();
-                        setResetSuccess(true);
-                        setTimeout(() => {
-                          setResetSuccess(false);
-                          onClose();
-                        }, 1500);
+                      if (confirm('¿Estás seguro de que deseas vaciar todos los datos demo de prueba? Esta acción te permitirá iniciar con tu farmacia completamente en blanco.')) {
+                        onClearDemoData();
+                        setDemoClearedMsg(true);
+                        setTimeout(() => setDemoClearedMsg(false), 3000);
                       }
                     }}
-                    className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-2xl shadow-xl shadow-rose-600/30 flex items-center justify-center gap-2 transition-all text-xs uppercase tracking-widest"
+                    className="w-full py-2.5 px-4 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs transition-colors flex items-center justify-center gap-2 shadow-sm"
                   >
-                    <RotateCcw className="w-4 h-4" />
-                    Restablecer a Datos Iniciales
+                    <Trash2 className="w-4 h-4" />
+                    <span>Vaciar Datos Demo (Iniciar Farmacia en Blanco)</span>
                   </button>
                 )}
               </div>

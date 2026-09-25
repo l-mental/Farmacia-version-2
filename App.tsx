@@ -51,6 +51,10 @@ const AppContent: React.FC = () => {
     handleAddPatient,
     handleCompleteSale,
     handleRegisterPurchase,
+    handleBatchAddMeds,
+    handleReplaceMeds,
+    handleClearDemoData,
+    handleClearAllInventory,
     resetToMockData
   } = useFarmaData();
 
@@ -164,6 +168,9 @@ const AppContent: React.FC = () => {
                 <InventoryManager 
                   medications={medications} 
                   onAdd={(m) => setMedications(prev => [...prev, m])} 
+                  onBatchAdd={handleBatchAddMeds}
+                  onReplaceAll={handleReplaceMeds}
+                  onClearInventory={handleClearAllInventory}
                   onUpdate={(m) => setMedications(prev => prev.map(x => x.id === m.id ? m : x))} 
                   onDelete={(id) => setMedications(prev => prev.filter(x => x.id !== id))}
                   currencySymbol={currency.symbol}
@@ -251,7 +258,7 @@ const AppContent: React.FC = () => {
         setBusinessQR={setBusinessQR}
         pharmacyInfo={pharmacyInfo}
         setPharmacyInfo={setPharmacyInfo}
-        onResetData={resetToMockData}
+        onClearDemoData={handleClearDemoData}
         currentUserRole={currentUser.role}
         notificationSettings={notificationSettings}
         onUpdateNotificationSettings={updateNotificationSettings}

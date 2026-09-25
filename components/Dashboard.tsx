@@ -54,18 +54,12 @@ const Dashboard: React.FC<DashboardProps> = ({ medications, currencySymbol, sale
     return diff >= (90 * 24 * 60 * 60 * 1000); // more than 90 days
   });
 
-  // Caja 1 vs Caja 2 overview
-  const caja1Sales = sales.filter(s => (s.cashRegister || 'Caja 1') === 'Caja 1');
-  const caja2Sales = sales.filter(s => s.cashRegister === 'Caja 2');
-  const caja1Total = caja1Sales.reduce((sum, s) => sum + s.total, 0);
-  const caja2Total = caja2Sales.reduce((sum, s) => sum + s.total, 0);
-
   return (
     <div className="p-3 md:p-6 space-y-4 md:space-y-6 animate-in fade-in duration-500 pb-20 md:pb-8">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
           <h2 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight">Panel de Control & Alertas Sanitarias</h2>
-          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-0.5">Control de Cajas, Vencimientos y Stock</p>
+          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-0.5">Control de Vencimientos, Stock y Alertas de Inventario</p>
         </div>
       </div>
 
@@ -111,43 +105,6 @@ const Dashboard: React.FC<DashboardProps> = ({ medications, currencySymbol, sale
           badgeClass="bg-emerald-50 text-emerald-700" 
           borderClass="border-emerald-100"
         />
-      </div>
-
-      {/* Caja 1 vs Caja 2 Quick Status Widget */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white p-4 md:p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-              <Store className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600">Punto de Cobro #1</span>
-              <h4 className="text-base font-black text-slate-900">Caja 1</h4>
-              <p className="text-xs text-slate-500 font-bold">{caja1Sales.length} ventas realizadas</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Facturado</span>
-            <span className="text-xl font-black text-slate-900">{currencySymbol}{caja1Total.toFixed(2)}</span>
-          </div>
-        </div>
-
-        <div className="bg-white p-4 md:p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-              <Store className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[9px] font-black uppercase tracking-widest text-blue-600">Punto de Cobro #2</span>
-              <h4 className="text-base font-black text-slate-900">Caja 2</h4>
-              <p className="text-xs text-slate-500 font-bold">{caja2Sales.length} ventas realizadas</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Facturado</span>
-            <span className="text-xl font-black text-slate-900">{currencySymbol}{caja2Total.toFixed(2)}</span>
-          </div>
-        </div>
       </div>
 
       {/* Expiry Alerts Grid: Vencidos vs Vencimiento Corto with Countdown */}

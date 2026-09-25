@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Search, ShoppingBag, Plus, Minus, Trash2, CheckCircle2, User, 
   FileText, AlertCircle, ShieldCheck, X, ChevronUp, Printer, 
@@ -74,12 +74,25 @@ const PosSystem: React.FC<PosSystemProps> = ({
   };
 
   const [newPatientData, setNewPatientData] = useState({ name: '', dni: '' });
+  const [visibleLimit, setVisibleLimit] = useState(48);
 
-  const filteredMeds = medications.filter(m => 
-    m.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    m.genericName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    m.laboratory.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  useEffect(() => {
+    setVisibleLimit(48);
+  }, [searchTerm]);
+
+  const filteredMeds = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return medications;
+    return medications.filter(m => 
+      m.name.toLowerCase().includes(term) || 
+      m.genericName.toLowerCase().includes(term) ||
+      m.laboratory.toLowerCase().includes(term)
+    );
+  }, [medications, searchTerm]);
+
+  const displayedMeds = useMemo(() => {
+    return filteredMeds.slice(0, visibleLimit);
+  }, [filteredMeds, visibleLimit]);
 
   const subtotal = useMemo(() => cart.reduce((sum, item) => sum + item.subtotal, 0), [cart]);
   const discount = useMemo(() => subtotal * (selectedInsurance.coveragePercent / 100), [subtotal, selectedInsurance]);
@@ -319,7 +332,7 @@ const PosSystem: React.FC<PosSystemProps> = ({
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 md:p-6 grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4 md:gap-6 pb-24 lg:pb-6">
-          {filteredMeds.map(med => {
+          {displayedMeds.map(med => {
             const firstBatch = med.batches[0];
             const expTime = firstBatch?.expiryDate ? new Date(firstBatch.expiryDate).getTime() : null;
             const now = Date.now();
@@ -397,6 +410,18 @@ const PosSystem: React.FC<PosSystemProps> = ({
               </div>
             );
           })}
+
+          {filteredMeds.length > visibleLimit && (
+            <div className="col-span-full py-4 text-center">
+              <button
+                type="button"
+                onClick={() => setVisibleLimit(prev => prev + 48)}
+                className="px-6 py-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold text-xs rounded-2xl shadow-sm transition-all active:scale-95"
+              >
+                Cargar más medicamentos (Mostrando {displayedMeds.length} de {filteredMeds.length})
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

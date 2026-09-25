@@ -1,13 +1,14 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { 
   Plus, Edit2, Trash2, Search, X, Pill, 
   Package, AlertTriangle, Calendar, Activity, 
   ShieldCheck, Save, Image as ImageIcon, 
-  FileText, Hash, DollarSign, ChevronRight,
+  FileText, Hash, DollarSign, ChevronRight, ChevronLeft,
+  ChevronsLeft, ChevronsRight,
   Upload, Download, Lock, AlertOctagon, Clock,
   ArrowDownRight, ArrowUpRight, Zap, Check,
   Sparkles, RefreshCw, Layers, CheckCircle2,
-  ChevronDown, ChevronUp, Tag
+  ChevronDown, ChevronUp, Tag, FileSpreadsheet
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Medication, Category, Batch, User, canUserEditInventory } from '@/types';
@@ -23,6 +24,9 @@ import {
 interface InventoryManagerProps {
   medications: Medication[];
   onAdd: (med: Medication) => void;
+  onBatchAdd?: (meds: Medication[]) => void;
+  onReplaceAll?: (meds: Medication[]) => void;
+  onClearInventory?: () => void;
   onUpdate: (med: Medication) => void;
   onDelete: (id: string) => void;
   currencySymbol: string;
@@ -33,6 +37,9 @@ interface InventoryManagerProps {
 const InventoryManager: React.FC<InventoryManagerProps> = ({ 
   medications, 
   onAdd, 
+  onBatchAdd,
+  onReplaceAll,
+  onClearInventory,
   onUpdate, 
   onDelete, 
   currencySymbol, 
@@ -41,6 +48,15 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'ALL' | 'EXPIRED' | 'SHORT' | 'LONG' | 'MIN_STOCK' | 'MAX_STOCK'>('ALL');
+  
+  // Pagination State for high performance (supporting up to 2000+ products)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [showClearModal, setShowClearModal] = useState(false);
+  const [importModeModal, setImportModeModal] = useState<{ isOpen: boolean; pendingMeds: Medication[] }>({
+    isOpen: false,
+    pendingMeds: []
+  });
   
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -77,7 +93,7 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
     ? canUserEditInventory(currentUser) 
     : (currentUserRole === 'ADMIN' || currentUserRole === 'PHARMACIST');
 
-  // Excel import
+  // Excel import supporting bulk uploads of up to 2000+ items
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!canManageInventory) {
       alert('Acceso restringido: Los cajeros no pueden manipular ni importar inventarios.');
@@ -88,47 +104,62 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
 
     const reader = new FileReader();
     reader.onload = (evt) => {
-      const bstr = evt.target?.result;
-      const wb = XLSX.read(bstr, { type: 'binary' });
-      const wsname = wb.SheetNames[0];
-      const ws = wb.Sheets[wsname];
-      const data = XLSX.utils.sheet_to_json(ws);
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws);
 
-      data.forEach((row: any) => {
-        const priceBox = parseFloat(row['Precio Caja']) || 0;
-        const unitsPerBox = parseInt(row['Unidades por Caja']) || 1;
-        const stockBoxes = parseInt(row['Stock Cajas']) || 0;
-        const stockUnits = stockBoxes * unitsPerBox;
+        if (!data || data.length === 0) {
+          showToast('El archivo Excel no contiene filas de medicamentos.');
+          return;
+        }
 
-        const newMed: Medication = {
-          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-          name: row['Nombre'] || 'Sin Nombre',
-          genericName: row['Nombre Genérico'] || '',
-          laboratory: row['Laboratorio'] || '',
-          description: row['Descripción'] || '',
-          priceBox: priceBox,
-          priceUnit: parseFloat((priceBox / unitsPerBox).toFixed(2)),
-          unitsPerBox: unitsPerBox,
-          category: (row['Categoría'] as Category) || Category.OTHERS,
-          imageUrl: row['Imagen URL'] || getCategoryDefaultImage((row['Categoría'] as Category) || Category.OTHERS),
-          stockBoxes: stockBoxes,
-          stockUnits: stockUnits,
-          isControlled: row['Controlado'] === 'SI' || row['Controlado'] === true,
-          minStock: parseInt(row['Stock Mínimo']) || 5,
-          maxStock: parseInt(row['Stock Máximo']) || 50,
-          batches: [
-            {
-              lotNumber: row['Lote'] || generateAutoLot(),
-              expiryDate: row['Vencimiento'] || getDatePlusYears(2),
-              quantity: stockUnits
-            }
-          ]
-        };
-        onAdd(newMed);
-      });
-      
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      showToast(`${data.length} productos importados correctamente con sus lotes.`);
+        const newMeds: Medication[] = data.map((row: any, idx: number) => {
+          const priceBox = parseFloat(row['Precio Caja']) || 0;
+          const unitsPerBox = parseInt(row['Unidades por Caja']) || 1;
+          const stockBoxes = parseInt(row['Stock Cajas']) || 0;
+          const stockUnits = stockBoxes * unitsPerBox;
+
+          return {
+            id: (Date.now() + idx).toString() + Math.random().toString(36).substr(2, 6),
+            name: row['Nombre'] || 'Sin Nombre',
+            genericName: row['Nombre Genérico'] || '',
+            laboratory: row['Laboratorio'] || '',
+            description: row['Descripción'] || '',
+            priceBox: priceBox,
+            priceUnit: parseFloat((priceBox / unitsPerBox).toFixed(2)),
+            unitsPerBox: unitsPerBox,
+            category: (row['Categoría'] as Category) || Category.OTHERS,
+            imageUrl: row['Imagen URL'] || getCategoryDefaultImage((row['Categoría'] as Category) || Category.OTHERS),
+            stockBoxes: stockBoxes,
+            stockUnits: stockUnits,
+            isControlled: row['Controlado'] === 'SI' || row['Controlado'] === true,
+            minStock: parseInt(row['Stock Mínimo']) || 5,
+            maxStock: parseInt(row['Stock Máximo']) || 50,
+            batches: [
+              {
+                lotNumber: row['Lote'] || generateAutoLot(),
+                expiryDate: row['Vencimiento'] || getDatePlusYears(2),
+                quantity: stockUnits
+              }
+            ]
+          };
+        });
+
+        if (onBatchAdd) {
+          onBatchAdd(newMeds);
+        } else {
+          newMeds.forEach(m => onAdd(m));
+        }
+        
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        showToast(`¡Éxito! ${newMeds.length} productos procesados e integrados al catálogo.`);
+      } catch (err) {
+        console.error(err);
+        showToast('Error al procesar el archivo Excel. Verifique el formato.');
+      }
     };
     reader.readAsBinaryString(file);
   };
@@ -315,6 +346,17 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
 
     return true;
   });
+
+  // Automatically reset to page 1 on filter or search
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterType]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginatedMeds = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, currentPage, pageSize]);
 
   const openAddModal = () => {
     if (!canManageInventory) {
@@ -626,13 +668,16 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                 <Package className="text-white w-5 h-5 md:w-6 md:h-6"/>
               </div>
               <div>
-                <h1 className="text-xl md:text-2xl lg:text-3xl font-black text-slate-900 tracking-tight">
-                  Control de Stock e Inventario
-                </h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl md:text-2xl lg:text-3xl font-black text-slate-900 tracking-tight">
+                    Control de Stock e Inventario
+                  </h1>
+                  <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200/80 rounded-full text-[10px] font-black uppercase tracking-wider">
+                    Capacidad: 2,000+ Prod.
+                  </span>
+                </div>
                 <p className="text-slate-400 text-[10px] md:text-xs font-medium">
-                  {canManageInventory 
-                    ? 'Entrada rápida y sencilla de medicamentos, control de lotes y fechas de vencimiento.' 
-                    : 'Modo solo lectura para cajeros: consulta de precios, lotes y existencias.'}
+                  Catálogo de medicamentos, control de lotes y fechas de vencimiento.
                 </p>
               </div>
             </div>
@@ -640,7 +685,7 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
             {canManageInventory && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                 <button 
                   onClick={() => setShowQuickBar(!showQuickBar)}
                   className={`p-2.5 md:px-3.5 md:py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all text-xs shadow-sm border active:scale-95 ${
@@ -664,10 +709,10 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                 <button 
                   onClick={() => fileInputRef.current?.click()}
                   className="bg-white border border-slate-200 text-slate-600 p-2.5 md:px-3.5 md:py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-50 transition-all text-xs shadow-sm active:scale-95"
-                  title="Importar catálogo desde Excel"
+                  title="Importar hasta 2,000 medicamentos desde Excel"
                 >
                   <Upload className="w-3.5 h-3.5 text-emerald-600"/> 
-                  <span className="hidden md:inline">Importar</span>
+                  <span className="hidden md:inline">Importar Excel</span>
                 </button>
                 
                 <button 
@@ -678,6 +723,17 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                   <Download className="w-3.5 h-3.5 text-blue-600"/> 
                   <span className="hidden md:inline">Plantilla</span>
                 </button>
+
+                {onClearInventory && medications.length > 0 && (
+                  <button 
+                    onClick={() => setShowClearModal(true)}
+                    className="bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 p-2.5 md:px-3 md:py-2.5 rounded-xl font-bold flex items-center justify-center gap-1.5 transition-all text-xs shadow-sm active:scale-95"
+                    title="Vaciar datos demo para empezar con catálogo limpio"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                    <span className="hidden lg:inline text-rose-700">Vaciar Demo</span>
+                  </button>
+                )}
 
                 <button 
                   onClick={openAddModal}
@@ -990,6 +1046,80 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
           </div>
         )}
 
+        {/* Top Pagination and Info Bar */}
+        {filtered.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3 sm:px-4 sm:py-2.5 rounded-2xl border border-slate-200 text-xs text-slate-600 shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-700">
+                Mostrando {(currentPage - 1) * pageSize + 1} - {Math.min(currentPage * pageSize, filtered.length)} de <span className="font-black text-slate-900">{filtered.length}</span> medicamentos
+              </span>
+              <span className="text-[10px] text-emerald-700 font-black px-2 py-0.5 bg-emerald-50 rounded-full border border-emerald-100 hidden md:inline">
+                Soporta 2,000+ productos
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-400 font-medium">Por página:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                >
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={200}>200</option>
+                  <option value={500}>500</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  className="p-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Primera Página"
+                >
+                  <ChevronsLeft className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="p-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Página Anterior"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <span className="px-2 font-bold text-slate-800 text-xs">
+                  {currentPage} / {totalPages}
+                </span>
+
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage >= totalPages}
+                  className="p-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Página Siguiente"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage >= totalPages}
+                  className="p-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                  title="Última Página"
+                >
+                  <ChevronsRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Medication Cards List */}
         <div className="grid grid-cols-1 gap-2.5">
           {filtered.length === 0 ? (
@@ -1010,7 +1140,7 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
               )}
             </div>
           ) : (
-            filtered.map(med => {
+            paginatedMeds.map(med => {
               const expiryInfo = getExpiryStatus(med.batches[0]?.expiryDate || '');
               const isUnderMin = med.stockBoxes <= med.minStock;
               const isOverMax = med.maxStock ? med.stockBoxes >= med.maxStock : false;
@@ -1125,6 +1255,97 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
             })
           )}
         </div>
+
+        {/* Bottom Pagination Bar */}
+        {filtered.length > pageSize && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3 sm:px-4 sm:py-2.5 rounded-2xl border border-slate-200 text-xs text-slate-600 shadow-sm mt-3">
+            <span className="font-bold text-slate-700">
+              Página {currentPage} de {totalPages} ({filtered.length} medicamentos totales)
+            </span>
+
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                className="p-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Primera Página"
+              >
+                <ChevronsLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="p-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Página Anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              <span className="px-2 font-bold text-slate-800 text-xs">
+                {currentPage} / {totalPages}
+              </span>
+
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage >= totalPages}
+                className="p-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Página Siguiente"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage >= totalPages}
+                className="p-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed"
+                title="Última Página"
+              >
+                <ChevronsRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Confirmar Vaciar Datos Demo */}
+        {showClearModal && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+              <div className="flex items-center gap-3 text-rose-600">
+                <div className="p-3 bg-rose-50 rounded-2xl">
+                  <Trash2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">¿Vaciar medicamentos de prueba?</h3>
+                  <p className="text-xs text-slate-500 font-medium">Esta acción limpiará los datos demo del inventario.</p>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200">
+                Se vaciará el catálogo actual para que puedas cargar tus medicamentos reales de tu farmacia, ya sea manualmente con <strong>+ Agregar Medicamento</strong> o importando tu archivo Excel con hasta <strong>2,000 productos</strong>.
+              </p>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowClearModal(false)}
+                  className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClearInventory?.();
+                    setShowClearModal(false);
+                    showToast('Inventario vaciado con éxito. Listo para tus productos reales.');
+                  }}
+                  className="flex-1 py-2.5 px-4 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl text-xs transition-colors shadow-md shadow-rose-600/20 active:scale-95"
+                >
+                  Sí, Vaciar Inventario
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* MODAL DE ENTRADA RÁPIDA / AGREGAR MEDICAMENTO ULTRA SENCILLO */}
         {isModalOpen && (
