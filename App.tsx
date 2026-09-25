@@ -1,14 +1,12 @@
-
 import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { Bot, Sparkles } from 'lucide-react';
 import { useFarmaData } from '@/hooks/useFarmaData';
+import { usePeriodicAlerts } from '@/hooks/usePeriodicAlerts';
 import Login from '@/components/Login';
 import PosSystem from '@/components/PosSystem';
 import InventoryManager from '@/components/InventoryManager';
 import Dashboard from '@/components/Dashboard';
 import Reports from '@/components/Reports';
-import AIConsultant from '@/components/AIConsultant';
 import StaffManager from '@/components/StaffManager';
 import SuppliersManager from '@/components/SuppliersManager';
 import CustomersManager from '@/components/CustomersManager';
@@ -18,12 +16,15 @@ import AppHeader from '@/components/layout/AppHeader';
 import MobileNav from '@/components/layout/MobileNav';
 import SettingsModal from '@/components/modals/SettingsModal';
 import NewPatientModal from '@/components/modals/NewPatientModal';
+import SystemNotificationBanner from '@/components/SystemNotificationBanner';
+import { canUserAccessSection } from '@/types';
 
 type TabType = 'DASHBOARD' | 'POS' | 'INVENTORY' | 'REPORTS' | 'CUSTOMERS' | 'STAFF' | 'SETTINGS' | 'SUPPLIERS' | 'PURCHASES';
 
 const AppContent: React.FC = () => {
   const {
     currentUser,
+    pharmacyInfo,
     medications,
     customers,
     staff,
@@ -31,14 +32,17 @@ const AppContent: React.FC = () => {
     suppliers,
     purchases,
     currency,
+    activeCashRegister,
     businessQR,
     isOnline,
     darkMode,
+    setPharmacyInfo,
     setMedications,
     setStaff,
     setSuppliers,
     setPurchases,
     setCurrency,
+    setActiveCashRegister,
     setBusinessQR,
     setDarkMode,
     handleLogin,
@@ -50,7 +54,17 @@ const AppContent: React.FC = () => {
     resetToMockData
   } = useFarmaData();
 
-  const [isAIConsultantOpen, setIsAIConsultantOpen] = useState(false);
+  // Periodic System Alerts Hook (Native OS Notifications, Audio Chime, Vibration every 5 mins)
+  const {
+    settings: notificationSettings,
+    updateSettings: updateNotificationSettings,
+    activeAlert,
+    dismissAlert,
+    triggerTestAlert,
+    permissionStatus,
+    requestPermission
+  } = usePeriodicAlerts(medications);
+
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNewPatientModalOpen, setIsNewPatientModalOpen] = useState(false);
   const location = useLocation();
@@ -70,8 +84,28 @@ const AppContent: React.FC = () => {
 
   const activeTab = (location.pathname.split('/')[1]?.toUpperCase() || 'DASHBOARD') as TabType;
 
+  // Determine user's primary allowed route based on their permissions
+  const defaultPath = canUserAccessSection(currentUser, 'DASHBOARD') 
+    ? '/dashboard' 
+    : canUserAccessSection(currentUser, 'POS') 
+    ? '/pos' 
+    : canUserAccessSection(currentUser, 'INVENTORY') 
+    ? '/inventory' 
+    : canUserAccessSection(currentUser, 'CUSTOMERS')
+    ? '/customers'
+    : '/pos';
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row relative overflow-hidden">
+      {/* Floating System Alert Banner (Low battery / urgent alert style) */}
+      <SystemNotificationBanner 
+        alert={activeAlert}
+        onDismiss={dismissAlert}
+        permissionStatus={permissionStatus}
+        onRequestPermission={requestPermission}
+        intervalMinutes={notificationSettings.intervalMinutes}
+      />
+
       <Sidebar 
         activeTab={activeTab} 
         currentUser={currentUser} 
@@ -90,64 +124,103 @@ const AppContent: React.FC = () => {
           currentUserRole={currentUser.role}
           currentUserOriginalRole={currentUser.originalRole}
           onSwitchRole={handleSwitchRole}
+          medications={medications}
+          notificationSettings={notificationSettings}
+          onUpdateNotificationSettings={updateNotificationSettings}
+          onTriggerTestAlert={triggerTestAlert}
+          permissionStatus={permissionStatus}
+          onRequestPermission={requestPermission}
         />
 
         <div className="flex-1 overflow-y-auto">
           <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard medications={medications} currencySymbol={currency.symbol} />} />
-            <Route path="/pos" element={
-              <PosSystem 
-                medications={medications} 
-                customers={customers} 
-                onCompleteSale={handleCompleteSale} 
-                onAddPatient={handleAddPatient} 
-                currencySymbol={currency.symbol}
-                businessQR={businessQR}
-              />
+            <Route path="/" element={<Navigate to={defaultPath} replace />} />
+
+            <Route path="/dashboard" element={
+              canUserAccessSection(currentUser, 'DASHBOARD') ? (
+                <Dashboard medications={medications} sales={sales} currencySymbol={currency.symbol} />
+              ) : <Navigate to={defaultPath} replace />
             } />
+
+            <Route path="/pos" element={
+              canUserAccessSection(currentUser, 'POS') ? (
+                <PosSystem 
+                  medications={medications} 
+                  customers={customers} 
+                  onCompleteSale={handleCompleteSale} 
+                  onAddPatient={handleAddPatient} 
+                  currencySymbol={currency.symbol}
+                  businessQR={businessQR}
+                  pharmacyInfo={pharmacyInfo}
+                  currentUser={currentUser}
+                  activeCashRegister={activeCashRegister}
+                  onChangeCashRegister={setActiveCashRegister}
+                />
+              ) : <Navigate to={defaultPath} replace />
+            } />
+
             <Route path="/inventory" element={
-               <InventoryManager 
+              canUserAccessSection(currentUser, 'INVENTORY') ? (
+                <InventoryManager 
                   medications={medications} 
                   onAdd={(m) => setMedications(prev => [...prev, m])} 
                   onUpdate={(m) => setMedications(prev => prev.map(x => x.id === m.id ? m : x))} 
                   onDelete={(id) => setMedications(prev => prev.filter(x => x.id !== id))}
                   currencySymbol={currency.symbol}
+                  currentUser={currentUser}
                   currentUserRole={currentUser.role}
                 />
+              ) : <Navigate to={defaultPath} replace />
             } />
+
             <Route path="/reports" element={
-              currentUser.role === 'ADMIN' ? (
-                <Reports sales={sales} currencySymbol={currency.symbol} currentUserRole={currentUser.role} />
-              ) : <Navigate to="/dashboard" replace />
+              canUserAccessSection(currentUser, 'REPORTS') ? (
+                <Reports 
+                  sales={sales} 
+                  currencySymbol={currency.symbol} 
+                  currentUserRole={currentUser.role}
+                  pharmacyInfo={pharmacyInfo}
+                  staff={staff}
+                />
+              ) : <Navigate to={defaultPath} replace />
             } />
+
             <Route path="/suppliers" element={
-              <SuppliersManager 
-                suppliers={suppliers}
-                onAdd={(s) => setSuppliers(prev => [...prev, s])}
-                onUpdate={(s) => setSuppliers(prev => prev.map(x => x.id === s.id ? s : x))}
-                onDelete={(id) => setSuppliers(prev => prev.filter(x => x.id !== id))}
-              />
+              canUserAccessSection(currentUser, 'SUPPLIERS') ? (
+                <SuppliersManager 
+                  suppliers={suppliers}
+                  onAdd={(s) => setSuppliers(prev => [...prev, s])}
+                  onUpdate={(s) => setSuppliers(prev => prev.map(x => x.id === s.id ? s : x))}
+                  onDelete={(id) => setSuppliers(prev => prev.filter(x => x.id !== id))}
+                />
+              ) : <Navigate to={defaultPath} replace />
             } />
+
             <Route path="/purchases" element={
-              <PurchasesManager 
-                purchases={purchases}
-                suppliers={suppliers}
-                medications={medications}
-                onRegister={handleRegisterPurchase}
-                currencySymbol={currency.symbol}
-              />
+              canUserAccessSection(currentUser, 'PURCHASES') ? (
+                <PurchasesManager 
+                  purchases={purchases}
+                  suppliers={suppliers}
+                  medications={medications}
+                  onRegister={handleRegisterPurchase}
+                  currencySymbol={currency.symbol}
+                />
+              ) : <Navigate to={defaultPath} replace />
             } />
+
             <Route path="/customers" element={
-              <CustomersManager 
-                customers={customers}
-                sales={sales}
-                currency={currency}
-                onOpenAddModal={() => setIsNewPatientModalOpen(true)}
-              />
+              canUserAccessSection(currentUser, 'CUSTOMERS') ? (
+                <CustomersManager 
+                  customers={customers}
+                  sales={sales}
+                  currency={currency}
+                  onOpenAddModal={() => setIsNewPatientModalOpen(true)}
+                />
+              ) : <Navigate to={defaultPath} replace />
             } />
+
             <Route path="/staff" element={
-              currentUser.role === 'ADMIN' ? (
+              canUserAccessSection(currentUser, 'STAFF') ? (
                 <StaffManager 
                   staff={staff} 
                   onAdd={(u) => setStaff(prev => [...prev, u])} 
@@ -156,9 +229,10 @@ const AppContent: React.FC = () => {
                   sales={sales}
                   currentUserRole={currentUser.role}
                 />
-              ) : <Navigate to="/dashboard" replace />
+              ) : <Navigate to={defaultPath} replace />
             } />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+
+            <Route path="*" element={<Navigate to={defaultPath} replace />} />
           </Routes>
         </div>
       </main>
@@ -168,34 +242,6 @@ const AppContent: React.FC = () => {
         currentUser={currentUser} 
       />
 
-      {/* Floating AI Button */}
-      {!isAIConsultantOpen && (
-        <button 
-          onClick={() => setIsAIConsultantOpen(true)}
-          className="fixed bottom-20 md:bottom-8 right-6 md:right-8 z-[100] group flex items-center gap-3 bg-emerald-600 hover:bg-emerald-700 text-white p-4 lg:px-6 lg:py-4 rounded-full lg:rounded-2xl shadow-2xl shadow-emerald-600/40 transition-all duration-300 hover:scale-105 active:scale-95 animate-bounce-subtle"
-        >
-          <div className="relative">
-            <Bot className="w-6 h-6 md:w-7 md:h-7" />
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-300 rounded-full animate-ping" />
-          </div>
-          <div className="hidden lg:block text-left">
-            <p className="text-[10px] font-black uppercase tracking-widest opacity-70">Consultas</p>
-            <p className="text-sm font-bold">Asistente Bot</p>
-          </div>
-          <Sparkles className="w-4 h-4 text-emerald-300 hidden lg:block" />
-        </button>
-      )}
-
-      {isAIConsultantOpen && currentUser && (
-        <AIConsultant 
-          onClose={() => setIsAIConsultantOpen(false)} 
-          medications={medications}
-          sales={sales}
-          customers={customers}
-          currentUser={currentUser}
-        />
-      )}
-
       <SettingsModal 
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
@@ -203,8 +249,15 @@ const AppContent: React.FC = () => {
         setCurrency={setCurrency}
         businessQR={businessQR}
         setBusinessQR={setBusinessQR}
+        pharmacyInfo={pharmacyInfo}
+        setPharmacyInfo={setPharmacyInfo}
         onResetData={resetToMockData}
         currentUserRole={currentUser.role}
+        notificationSettings={notificationSettings}
+        onUpdateNotificationSettings={updateNotificationSettings}
+        onTriggerTestAlert={triggerTestAlert}
+        permissionStatus={permissionStatus}
+        onRequestPermission={requestPermission}
       />
 
       <NewPatientModal 
@@ -212,16 +265,6 @@ const AppContent: React.FC = () => {
         onClose={() => setIsNewPatientModalOpen(false)}
         onAdd={handleAddPatient}
       />
-
-      <style>{`
-        @keyframes bounce-subtle {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-5px); }
-        }
-        .animate-bounce-subtle {
-          animation: bounce-subtle 3s infinite ease-in-out;
-        }
-      `}</style>
     </div>
   );
 };

@@ -1,5 +1,15 @@
 
-import { Medication, Category, InsurancePlan, Customer, SaleRecord, Currency, User, Supplier, Purchase } from './types';
+import { Medication, Category, InsurancePlan, Customer, SaleRecord, Currency, User, Supplier, Purchase, PharmacyInfo } from './types';
+
+export const DEFAULT_PHARMACY_INFO: PharmacyInfo = {
+  name: 'FARMASALUD S.R.L.',
+  commercialName: 'FARMACIA FARMASALUD BOLIVIA',
+  nit: '1020304050',
+  address: 'Av. 16 de Julio #1490, El Prado, La Paz',
+  phone: '2-2445566 / 71523456',
+  city: 'La Paz - Bolivia',
+  authorizationNumber: '29040011007'
+};
 
 export const INSURANCE_PLANS: InsurancePlan[] = [
   { id: 'PART', name: 'Particular (Sin Seguro)', coveragePercent: 0 },
@@ -48,11 +58,15 @@ export const MOCK_MEDICATIONS: Medication[] = [
     unitsPerBox: 24,
     category: Category.OTHERS,
     imageUrl: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400&h=300&fit=crop',
-    stockBoxes: 120,
-    stockUnits: 2880,
+    stockBoxes: 140,
+    stockUnits: 3360,
     isControlled: false,
     minStock: 20,
-    batches: [{ lotNumber: 'T-101', expiryDate: '2025-12-01', quantity: 2880 }]
+    maxStock: 120, // Sobre stock
+    batches: [
+      { lotNumber: 'T-101', expiryDate: '2026-10-25', quantity: 1800 }, // Corto (aprox 33 días)
+      { lotNumber: 'T-102', expiryDate: '2027-08-15', quantity: 1560 }  // Largo
+    ]
   },
   {
     id: '2',
@@ -69,12 +83,16 @@ export const MOCK_MEDICATIONS: Medication[] = [
     stockUnits: 1700,
     isControlled: false,
     minStock: 15,
-    batches: [{ lotNumber: 'B-202', expiryDate: '2026-06-15', quantity: 1700 }]
+    maxStock: 100, // Óptimo
+    batches: [
+      { lotNumber: 'B-201', expiryDate: '2026-05-10', quantity: 400 },  // Vencido
+      { lotNumber: 'B-202', expiryDate: '2027-09-20', quantity: 1300 }  // Largo
+    ]
   },
   {
     id: '3',
     name: 'Amoxicilina 500mg Inti',
-    genericName: 'Amoxicilina',
+    genericName: 'Amoxicilina Trihidrato',
     laboratory: 'Inti',
     description: 'Antibiótico bactericida de amplio espectro.',
     priceBox: 80,
@@ -82,16 +100,19 @@ export const MOCK_MEDICATIONS: Medication[] = [
     unitsPerBox: 16,
     category: Category.ANTIBIOTICS,
     imageUrl: 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=400&h=300&fit=crop',
-    stockBoxes: 40,
-    stockUnits: 640,
+    stockBoxes: 8,
+    stockUnits: 128,
     isControlled: true,
-    minStock: 10,
-    batches: [{ lotNumber: 'I-303', expiryDate: '2025-08-20', quantity: 640 }]
+    minStock: 15, // Bajo stock crítico
+    maxStock: 80,
+    batches: [
+      { lotNumber: 'I-303', expiryDate: '2026-11-15', quantity: 128 } // Corto (54 días)
+    ]
   },
   {
     id: '4',
     name: 'Vitamina C Redoxon',
-    genericName: 'Ácido Ascórbico',
+    genericName: 'Ácido Ascórbico 1000mg',
     laboratory: 'Bayer',
     description: 'Suplemento vitamínico efervescente.',
     priceBox: 35,
@@ -99,11 +120,14 @@ export const MOCK_MEDICATIONS: Medication[] = [
     unitsPerBox: 10,
     category: Category.VITAMINS,
     imageUrl: 'https://images.unsplash.com/photo-1616671285433-28952086cb48?w=400&h=300&fit=crop',
-    stockBoxes: 200,
-    stockUnits: 2000,
+    stockBoxes: 110,
+    stockUnits: 1100,
     isControlled: false,
     minStock: 30,
-    batches: [{ lotNumber: 'V-404', expiryDate: '2027-01-10', quantity: 2000 }]
+    maxStock: 150, // Óptimo
+    batches: [
+      { lotNumber: 'V-404', expiryDate: '2028-01-10', quantity: 1100 } // Largo
+    ]
   },
   {
     id: '5',
@@ -116,11 +140,14 @@ export const MOCK_MEDICATIONS: Medication[] = [
     unitsPerBox: 25,
     category: Category.DIGESTIVE,
     imageUrl: 'https://images.unsplash.com/photo-1626716493137-b67fe9501e76?w=400&h=300&fit=crop',
-    stockBoxes: 60,
-    stockUnits: 1500,
+    stockBoxes: 5,
+    stockUnits: 125,
     isControlled: false,
-    minStock: 12,
-    batches: [{ lotNumber: 'O-505', expiryDate: '2026-03-22', quantity: 1500 }]
+    minStock: 12, // Bajo stock
+    maxStock: 80,
+    batches: [
+      { lotNumber: 'O-505', expiryDate: '2026-04-18', quantity: 125 } // Vencido
+    ]
   },
   {
     id: '6',
@@ -137,7 +164,11 @@ export const MOCK_MEDICATIONS: Medication[] = [
     stockUnits: 2700,
     isControlled: false,
     minStock: 20,
-    batches: [{ lotNumber: 'D-606', expiryDate: '2025-11-05', quantity: 2700 }]
+    maxStock: 120, // Óptimo
+    batches: [
+      { lotNumber: 'D-606', expiryDate: '2026-10-30', quantity: 900 },  // Corto (38 días)
+      { lotNumber: 'D-607', expiryDate: '2027-11-20', quantity: 1800 }  // Largo
+    ]
   },
   {
     id: '7',
@@ -153,8 +184,11 @@ export const MOCK_MEDICATIONS: Medication[] = [
     stockBoxes: 150,
     stockUnits: 4500,
     isControlled: false,
-    minStock: 50,
-    batches: [{ lotNumber: 'A-707', expiryDate: '2026-09-30', quantity: 4500 }]
+    minStock: 40,
+    maxStock: 130, // Sobre stock
+    batches: [
+      { lotNumber: 'A-707', expiryDate: '2027-06-30', quantity: 4500 } // Largo
+    ]
   },
   {
     id: '8',
@@ -167,11 +201,14 @@ export const MOCK_MEDICATIONS: Medication[] = [
     unitsPerBox: 20,
     category: Category.VITAMINS,
     imageUrl: 'https://images.unsplash.com/photo-1584017945516-fa47c6142ace?w=400&h=300&fit=crop',
-    stockBoxes: 55,
-    stockUnits: 1100,
+    stockBoxes: 4,
+    stockUnits: 80,
     isControlled: false,
-    minStock: 10,
-    batches: [{ lotNumber: 'CB-808', expiryDate: '2025-05-18', quantity: 1100 }]
+    minStock: 10, // Bajo stock
+    maxStock: 60,
+    batches: [
+      { lotNumber: 'CB-808', expiryDate: '2026-06-18', quantity: 80 } // Vencido
+    ]
   },
   {
     id: '9',
@@ -184,33 +221,39 @@ export const MOCK_MEDICATIONS: Medication[] = [
     unitsPerBox: 30,
     category: Category.PAINKILLERS,
     imageUrl: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400&h=300&fit=crop',
-    stockBoxes: 110,
-    stockUnits: 3300,
+    stockBoxes: 65,
+    stockUnits: 1950,
     isControlled: false,
     minStock: 25,
-    batches: [{ lotNumber: 'AN-909', expiryDate: '2026-02-12', quantity: 3300 }]
+    maxStock: 90, // Óptimo
+    batches: [
+      { lotNumber: 'AN-909', expiryDate: '2027-02-12', quantity: 1950 } // Largo
+    ]
   },
   {
     id: '10',
     name: 'Loratadina 10mg Alcos',
     genericName: 'Loratadina',
     laboratory: 'Alcos',
-    description: 'Antihistamínico para alergias.',
+    description: 'Antihistamínico para alergias y rinitis.',
     priceBox: 35,
     priceUnit: 1.2,
     unitsPerBox: 30,
     category: Category.OTHERS,
     imageUrl: 'https://images.unsplash.com/photo-1471864190281-a93a3070b6de?w=400&h=300&fit=crop',
-    stockBoxes: 70,
-    stockUnits: 2100,
+    stockBoxes: 45,
+    stockUnits: 1350,
     isControlled: false,
     minStock: 15,
-    batches: [{ lotNumber: 'L-010', expiryDate: '2026-07-25', quantity: 2100 }]
+    maxStock: 70, // Óptimo
+    batches: [
+      { lotNumber: 'L-010', expiryDate: '2026-11-28', quantity: 1350 } // Corto (67 días)
+    ]
   },
   {
     id: '11',
     name: 'Salbutamol Inhalador Glaxo',
-    genericName: 'Salbutamol',
+    genericName: 'Salbutamol Sulfato',
     laboratory: 'Glaxo',
     description: 'Broncodilatador para el asma.',
     priceBox: 85,
@@ -218,18 +261,21 @@ export const MOCK_MEDICATIONS: Medication[] = [
     unitsPerBox: 1,
     category: Category.OTHERS,
     imageUrl: 'https://images.unsplash.com/photo-1542385151-efd9000785a0?w=400&h=300&fit=crop',
-    stockBoxes: 35,
-    stockUnits: 35,
+    stockBoxes: 3,
+    stockUnits: 3,
     isControlled: true,
-    minStock: 5,
-    batches: [{ lotNumber: 'S-111', expiryDate: '2025-10-30', quantity: 35 }]
+    minStock: 5, // Bajo stock
+    maxStock: 40,
+    batches: [
+      { lotNumber: 'S-111', expiryDate: '2026-07-30', quantity: 3 } // Vencido
+    ]
   },
   {
     id: '12',
     name: 'Metformina 850mg Chile',
-    genericName: 'Metformina clorhidrato',
+    genericName: 'Metformina Clorhidrato',
     laboratory: 'Laboratorios Chile',
-    description: 'Antidiabético oral.',
+    description: 'Antidiabético oral para el control glucémico.',
     priceBox: 90,
     priceUnit: 3,
     unitsPerBox: 30,
@@ -239,14 +285,17 @@ export const MOCK_MEDICATIONS: Medication[] = [
     stockUnits: 1350,
     isControlled: false,
     minStock: 8,
-    batches: [{ lotNumber: 'M-212', expiryDate: '2026-04-14', quantity: 1350 }]
+    maxStock: 60, // Óptimo
+    batches: [
+      { lotNumber: 'M-212', expiryDate: '2027-10-14', quantity: 1350 } // Largo
+    ]
   },
   {
     id: '13',
     name: 'Enalapril 10mg Terbol',
-    genericName: 'Enalapril maleato',
+    genericName: 'Enalapril Maleato',
     laboratory: 'Terbol',
-    description: 'Antihipertensivo.',
+    description: 'Antihipertensivo inhibidor de la ECA.',
     priceBox: 55,
     priceUnit: 2,
     unitsPerBox: 30,
@@ -256,14 +305,17 @@ export const MOCK_MEDICATIONS: Medication[] = [
     stockUnits: 1500,
     isControlled: false,
     minStock: 10,
-    batches: [{ lotNumber: 'E-313', expiryDate: '2025-12-05', quantity: 1500 }]
+    maxStock: 80, // Óptimo
+    batches: [
+      { lotNumber: 'E-313', expiryDate: '2026-12-05', quantity: 1500 } // Corto (74 días)
+    ]
   },
   {
     id: '14',
     name: 'Losartan 50mg Cofar',
-    genericName: 'Losartan potásico',
+    genericName: 'Losartan Potásico',
     laboratory: 'Cofar',
-    description: 'Para el tratamiento de la hipertensión.',
+    description: 'Tratamiento de la hipertensión arterial.',
     priceBox: 65,
     priceUnit: 2.5,
     unitsPerBox: 30,
@@ -273,14 +325,17 @@ export const MOCK_MEDICATIONS: Medication[] = [
     stockUnits: 1200,
     isControlled: false,
     minStock: 10,
-    batches: [{ lotNumber: 'LS-414', expiryDate: '2026-08-19', quantity: 1200 }]
+    maxStock: 75, // Óptimo
+    batches: [
+      { lotNumber: 'LS-414', expiryDate: '2027-05-19', quantity: 1200 } // Largo
+    ]
   },
   {
     id: '15',
     name: 'Dexametasona 4mg Sigma',
-    genericName: 'Dexametasona',
+    genericName: 'Dexametasona Fosfato',
     laboratory: 'Sigma',
-    description: 'Corticoide antiinflamatorio.',
+    description: 'Corticoide antiinflamatorio potente.',
     priceBox: 120,
     priceUnit: 6,
     unitsPerBox: 20,
@@ -290,26 +345,29 @@ export const MOCK_MEDICATIONS: Medication[] = [
     stockUnits: 500,
     isControlled: true,
     minStock: 5,
-    batches: [{ lotNumber: 'DX-515', expiryDate: '2025-06-30', quantity: 500 }]
+    maxStock: 30, // Óptimo
+    batches: [
+      { lotNumber: 'DX-515', expiryDate: '2026-08-30', quantity: 500 } // Vencido
+    ]
   }
 ];
 
 export const MOCK_STAFF: User[] = [
-  { id: 'U1', name: 'Administrador La Paz', username: 'admin', password: 'admin', role: 'ADMIN', phone: '70010020', email: 'admin@farmapos.bo' },
-  { id: 'U2', name: 'Ricardo Mamani', username: 'ricardo', password: '123', role: 'PHARMACIST', phone: '71020030', email: 'ricardo@farmapos.bo' },
-  { id: 'U3', name: 'Sonia Quispe', username: 'sonia', password: '123', role: 'EMPLOYEE', phone: '72030040', email: 'sonia@farmapos.bo' },
-  { id: 'U4', name: 'Pedro Flores', username: 'pedro', role: 'EMPLOYEE', phone: '73040050' },
-  { id: 'U5', name: 'Maria Choque', username: 'maria', role: 'PHARMACIST', phone: '74050060' },
-  { id: 'U6', name: 'Juan Calle', username: 'juan', role: 'EMPLOYEE', phone: '75060070' },
-  { id: 'U7', name: 'Elena Villca', username: 'elena', role: 'ADMIN', phone: '76070080' },
-  { id: 'U8', name: 'Roberto Huanca', username: 'roberto', role: 'EMPLOYEE', phone: '77080090' },
-  { id: 'U9', name: 'Carmen Ticona', username: 'carmen', role: 'PHARMACIST', phone: '78090001' },
-  { id: 'U10', name: 'Felix Vargas', username: 'felix', role: 'EMPLOYEE', phone: '79011122' },
-  { id: 'U11', name: 'Juana Apaza', username: 'juana', role: 'EMPLOYEE', phone: '61022233' },
-  { id: 'U12', name: 'Angel Condori', username: 'angel', role: 'PHARMACIST', phone: '62033344' },
-  { id: 'U13', name: 'Silvia Ramos', username: 'silvia', role: 'EMPLOYEE', phone: '63044455' },
-  { id: 'U14', name: 'Javier Paco', username: 'javier', role: 'ADMIN', phone: '64055566' },
-  { id: 'U15', name: 'Lucia Blanco', username: 'lucia', role: 'EMPLOYEE', phone: '65066677' }
+  { id: 'U1', name: 'Administrador La Paz', username: 'admin', password: 'admin', role: 'ADMIN', phone: '70010020', email: 'admin@farmapos.bo', assignedRegister: 'Caja 1' },
+  { id: 'U2', name: 'Ricardo Mamani', username: 'ricardo', password: '123', role: 'PHARMACIST', phone: '71020030', email: 'ricardo@farmapos.bo', assignedRegister: 'Caja 1' },
+  { id: 'U3', name: 'Sonia Quispe', username: 'sonia', password: '123', role: 'EMPLOYEE', phone: '72030040', email: 'sonia@farmapos.bo', assignedRegister: 'Caja 2' },
+  { id: 'U4', name: 'Pedro Flores', username: 'pedro', role: 'EMPLOYEE', phone: '73040050', assignedRegister: 'Caja 2' },
+  { id: 'U5', name: 'Maria Choque', username: 'maria', role: 'PHARMACIST', phone: '74050060', assignedRegister: 'Caja 1' },
+  { id: 'U6', name: 'Juan Calle', username: 'juan', role: 'EMPLOYEE', phone: '75060070', assignedRegister: 'Caja 2' },
+  { id: 'U7', name: 'Elena Villca', username: 'elena', role: 'ADMIN', phone: '76070080', assignedRegister: 'Caja 1' },
+  { id: 'U8', name: 'Roberto Huanca', username: 'roberto', role: 'EMPLOYEE', phone: '77080090', assignedRegister: 'Caja 1' },
+  { id: 'U9', name: 'Carmen Ticona', username: 'carmen', role: 'PHARMACIST', phone: '78090001', assignedRegister: 'Caja 2' },
+  { id: 'U10', name: 'Felix Vargas', username: 'felix', role: 'EMPLOYEE', phone: '79011122', assignedRegister: 'Caja 2' },
+  { id: 'U11', name: 'Juana Apaza', username: 'juana', role: 'EMPLOYEE', phone: '61022233', assignedRegister: 'Caja 1' },
+  { id: 'U12', name: 'Angel Condori', username: 'angel', role: 'PHARMACIST', phone: '62033344', assignedRegister: 'Caja 1' },
+  { id: 'U13', name: 'Silvia Ramos', username: 'silvia', role: 'EMPLOYEE', phone: '63044455', assignedRegister: 'Caja 2' },
+  { id: 'U14', name: 'Javier Paco', username: 'javier', role: 'ADMIN', phone: '64055566', assignedRegister: 'Caja 1' },
+  { id: 'U15', name: 'Lucia Blanco', username: 'lucia', role: 'EMPLOYEE', phone: '65066677', assignedRegister: 'Caja 2' }
 ];
 
 export const MOCK_SUPPLIERS: Supplier[] = [
@@ -331,21 +389,21 @@ export const MOCK_SUPPLIERS: Supplier[] = [
 ];
 
 export const MOCK_SALES: SaleRecord[] = [
-  { id: 'S1', timestamp: new Date(Date.now() - 3600000 * 1).toISOString(), items: [], total: 150, customerName: 'Carlos Condori', customerId: 'C1', insuranceName: 'OSDE', userId: 'U2', paymentMethod: 'CASH' },
-  { id: 'S2', timestamp: new Date(Date.now() - 3600000 * 2).toISOString(), items: [], total: 45, customerName: 'Ana Choque', customerId: 'C2', insuranceName: 'PAMI', userId: 'U2', paymentMethod: 'QR' },
-  { id: 'S3', timestamp: new Date(Date.now() - 3600000 * 3).toISOString(), items: [], total: 80, customerName: 'Luis Mamani', customerId: 'C3', insuranceName: 'Particular', userId: 'U3', paymentMethod: 'CARD' },
-  { id: 'S4', timestamp: new Date(Date.now() - 3600000 * 4).toISOString(), items: [], total: 200, customerName: 'Maria Quispe', customerId: 'C4', insuranceName: 'Swiss Medical', userId: 'U2', paymentMethod: 'CASH' },
-  { id: 'S5', timestamp: new Date(Date.now() - 3600000 * 5).toISOString(), items: [], total: 30, customerName: 'Jorge Flores', customerId: 'C5', insuranceName: 'Particular', userId: 'U3', paymentMethod: 'QR' },
-  { id: 'S6', timestamp: new Date(Date.now() - 3600000 * 6).toISOString(), items: [], total: 120, customerName: 'Elena Huanca', customerId: 'C6', insuranceName: 'OSDE', userId: 'U2', paymentMethod: 'CASH' },
-  { id: 'S7', timestamp: new Date(Date.now() - 3600000 * 7).toISOString(), items: [], total: 55, customerName: 'Roberto Ticona', customerId: 'C7', insuranceName: 'PAMI', userId: 'U3', paymentMethod: 'CARD' },
-  { id: 'S8', timestamp: new Date(Date.now() - 3600000 * 8).toISOString(), items: [], total: 95, customerName: 'Sandra Vargas', customerId: 'C8', insuranceName: 'Swiss Medical', userId: 'U2', paymentMethod: 'QR' },
-  { id: 'S9', timestamp: new Date(Date.now() - 3600000 * 9).toISOString(), items: [], total: 40, customerName: 'Felix Apaza', customerId: 'C9', insuranceName: 'Particular', userId: 'U3', paymentMethod: 'CASH' },
-  { id: 'S10', timestamp: new Date(Date.now() - 3600000 * 10).toISOString(), items: [], total: 180, customerName: 'Carmen Mendoza', customerId: 'C10', insuranceName: 'OSDE', userId: 'U2', paymentMethod: 'QR' },
-  { id: 'S11', timestamp: new Date(Date.now() - 3600000 * 11).toISOString(), items: [], total: 25, customerName: 'Victor Villca', customerId: 'C11', insuranceName: 'Particular', userId: 'U3', paymentMethod: 'CASH' },
-  { id: 'S12', timestamp: new Date(Date.now() - 3600000 * 12).toISOString(), items: [], total: 60, customerName: 'Juana Ramos', customerId: 'C12', insuranceName: 'PAMI', userId: 'U2', paymentMethod: 'CARD' },
-  { id: 'S13', timestamp: new Date(Date.now() - 3600000 * 13).toISOString(), items: [], total: 110, customerName: 'Angel Paco', customerId: 'C13', insuranceName: 'Swiss Medical', userId: 'U3', paymentMethod: 'QR' },
-  { id: 'S14', timestamp: new Date(Date.now() - 3600000 * 14).toISOString(), items: [], total: 35, customerName: 'Silvia Calle', customerId: 'C14', insuranceName: 'Particular', userId: 'U2', paymentMethod: 'CASH' },
-  { id: 'S15', timestamp: new Date(Date.now() - 3600000 * 15).toISOString(), items: [], total: 140, customerName: 'Javier Blanco', customerId: 'C15', insuranceName: 'OSDE', userId: 'U3', paymentMethod: 'QR' }
+  { id: 'S1', timestamp: new Date(Date.now() - 3600000 * 1).toISOString(), items: [{ medication: MOCK_MEDICATIONS[0], quantity: 2, isFractional: false, selectedBatch: 'T-101', subtotal: 90 }, { medication: MOCK_MEDICATIONS[1], quantity: 1, isFractional: false, selectedBatch: 'B-202', subtotal: 60 }], total: 150, customerName: 'Carlos Condori', customerId: 'C1', clientNit: '1234567 LP', documentType: 'FACTURA', insuranceName: 'OSDE', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'CASH' },
+  { id: 'S2', timestamp: new Date(Date.now() - 3600000 * 2).toISOString(), items: [{ medication: MOCK_MEDICATIONS[0], quantity: 1, isFractional: false, selectedBatch: 'T-101', subtotal: 45 }], total: 45, customerName: 'Ana Choque', customerId: 'C2', clientNit: '8765432 LP', documentType: 'FACTURA', insuranceName: 'PAMI', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'QR', qrVerified: true },
+  { id: 'S3', timestamp: new Date(Date.now() - 3600000 * 3).toISOString(), items: [{ medication: MOCK_MEDICATIONS[2], quantity: 1, isFractional: false, selectedBatch: 'I-303', subtotal: 80 }], total: 80, customerName: 'Luis Mamani', customerId: 'C3', clientNit: '4567890 LP', documentType: 'RECIBO', insuranceName: 'Particular', userId: 'U3', cashierName: 'Sonia Quispe', cashRegister: 'Caja 2', paymentMethod: 'CARD' },
+  { id: 'S4', timestamp: new Date(Date.now() - 3600000 * 4).toISOString(), items: [{ medication: MOCK_MEDICATIONS[4], quantity: 4, isFractional: false, selectedBatch: 'O-505', subtotal: 200 }], total: 200, customerName: 'Maria Quispe', customerId: 'C4', clientNit: '3210987 LP', documentType: 'FACTURA', insuranceName: 'Swiss Medical', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'CASH' },
+  { id: 'S5', timestamp: new Date(Date.now() - 3600000 * 5).toISOString(), items: [{ medication: MOCK_MEDICATIONS[6], quantity: 1, isFractional: false, selectedBatch: 'A-707', subtotal: 30 }], total: 30, customerName: 'Jorge Flores', customerId: 'C5', clientNit: '6543210 LP', documentType: 'RECIBO', insuranceName: 'Particular', userId: 'U3', cashierName: 'Sonia Quispe', cashRegister: 'Caja 2', paymentMethod: 'QR', qrVerified: true },
+  { id: 'S6', timestamp: new Date(Date.now() - 3600000 * 6).toISOString(), items: [{ medication: MOCK_MEDICATIONS[5], quantity: 3, isFractional: false, selectedBatch: 'D-606', subtotal: 120 }], total: 120, customerName: 'Elena Huanca', customerId: 'C6', clientNit: '9876543 LP', documentType: 'FACTURA', insuranceName: 'OSDE', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'CASH' },
+  { id: 'S7', timestamp: new Date(Date.now() - 3600000 * 7).toISOString(), items: [{ medication: MOCK_MEDICATIONS[9], quantity: 1, isFractional: false, selectedBatch: 'L-010', subtotal: 35 }, { medication: MOCK_MEDICATIONS[5], quantity: 10, isFractional: true, selectedBatch: 'D-606', subtotal: 20 }], total: 55, customerName: 'Roberto Ticona', customerId: 'C7', clientNit: '1357924 LP', documentType: 'RECIBO', insuranceName: 'PAMI', userId: 'U3', cashierName: 'Sonia Quispe', cashRegister: 'Caja 2', paymentMethod: 'CARD' },
+  { id: 'S8', timestamp: new Date(Date.now() - 3600000 * 8).toISOString(), items: [{ medication: MOCK_MEDICATIONS[3], quantity: 2, isFractional: false, selectedBatch: 'V-404', subtotal: 70 }, { medication: MOCK_MEDICATIONS[0], quantity: 10, isFractional: true, selectedBatch: 'T-101', subtotal: 25 }], total: 95, customerName: 'Sandra Vargas', customerId: 'C8', clientNit: '2468013 LP', documentType: 'FACTURA', insuranceName: 'Swiss Medical', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'QR', qrVerified: true },
+  { id: 'S9', timestamp: new Date(Date.now() - 3600000 * 9).toISOString(), items: [{ medication: MOCK_MEDICATIONS[5], quantity: 1, isFractional: false, selectedBatch: 'D-606', subtotal: 40 }], total: 40, customerName: 'Felix Apaza', customerId: 'C9', clientNit: '5791357 LP', documentType: 'FACTURA', insuranceName: 'Particular', userId: 'U3', cashierName: 'Sonia Quispe', cashRegister: 'Caja 2', paymentMethod: 'CASH' },
+  { id: 'S10', timestamp: new Date(Date.now() - 3600000 * 10).toISOString(), items: [{ medication: MOCK_MEDICATIONS[1], quantity: 3, isFractional: false, selectedBatch: 'B-202', subtotal: 180 }], total: 180, customerName: 'Carmen Mendoza', customerId: 'C10', clientNit: '8024680 LP', documentType: 'FACTURA', insuranceName: 'OSDE', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'QR', qrVerified: true },
+  { id: 'S11', timestamp: new Date(Date.now() - 3600000 * 11).toISOString(), items: [{ medication: MOCK_MEDICATIONS[0], quantity: 10, isFractional: true, selectedBatch: 'T-101', subtotal: 25 }], total: 25, customerName: 'Victor Villca', customerId: 'C11', clientNit: '1111111 LP', documentType: 'RECIBO', insuranceName: 'Particular', userId: 'U3', cashierName: 'Sonia Quispe', cashRegister: 'Caja 2', paymentMethod: 'CASH' },
+  { id: 'S12', timestamp: new Date(Date.now() - 3600000 * 12).toISOString(), items: [{ medication: MOCK_MEDICATIONS[1], quantity: 1, isFractional: false, selectedBatch: 'B-202', subtotal: 60 }], total: 60, customerName: 'Juana Ramos', customerId: 'C12', clientNit: '2222222 LP', documentType: 'FACTURA', insuranceName: 'PAMI', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'CARD' },
+  { id: 'S13', timestamp: new Date(Date.now() - 3600000 * 13).toISOString(), items: [{ medication: MOCK_MEDICATIONS[7], quantity: 1, isFractional: false, selectedBatch: 'CB-808', subtotal: 75 }, { medication: MOCK_MEDICATIONS[9], quantity: 1, isFractional: false, selectedBatch: 'L-010', subtotal: 35 }], total: 110, customerName: 'Angel Paco', customerId: 'C13', clientNit: '3333333 LP', documentType: 'FACTURA', insuranceName: 'Swiss Medical', userId: 'U3', cashierName: 'Sonia Quispe', cashRegister: 'Caja 2', paymentMethod: 'QR', qrVerified: true },
+  { id: 'S14', timestamp: new Date(Date.now() - 3600000 * 14).toISOString(), items: [{ medication: MOCK_MEDICATIONS[9], quantity: 1, isFractional: false, selectedBatch: 'L-010', subtotal: 35 }], total: 35, customerName: 'Silvia Calle', customerId: 'C14', clientNit: '4444444 LP', documentType: 'RECIBO', insuranceName: 'Particular', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'CASH' },
+  { id: 'S15', timestamp: new Date(Date.now() - 3600000 * 15).toISOString(), items: [{ medication: MOCK_MEDICATIONS[14], quantity: 1, isFractional: false, selectedBatch: 'DX-515', subtotal: 120 }, { medication: MOCK_MEDICATIONS[4], quantity: 10, isFractional: true, selectedBatch: 'O-505', subtotal: 20 }], total: 140, customerName: 'Javier Blanco', customerId: 'C15', clientNit: '5555555 LP', documentType: 'FACTURA', insuranceName: 'OSDE', userId: 'U3', cashierName: 'Sonia Quispe', cashRegister: 'Caja 2', paymentMethod: 'QR', qrVerified: true }
 ];
 
 export const MOCK_PURCHASES: Purchase[] = [

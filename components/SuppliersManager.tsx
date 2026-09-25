@@ -4,7 +4,7 @@ import {
   Plus, Edit2, Trash2, Search, X, Truck, 
   Phone, CreditCard, MapPin, Calendar, 
   Activity, Save, Upload, Download, Filter, 
-  RefreshCw, MoreVertical, Eye, ChevronRight
+  RefreshCw, MoreVertical, Eye, ChevronRight, Check
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Supplier } from '@/types';
@@ -209,8 +209,18 @@ const SuppliersManager: React.FC<SuppliersManagerProps> = ({ suppliers, onAdd, o
                       <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded uppercase">{supplier.ci}</span>
                     </td>
                     <td className="px-4 py-2.5">
-                      <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter ${supplier.status === 'active' ? 'bg-emerald-500 text-white' : 'bg-slate-300 text-white'}`}>
-                        {supplier.status === 'active' ? '✓ activo' : '✕ inactivo'}
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${supplier.status === 'active' ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-600'}`}>
+                        {supplier.status === 'active' ? (
+                          <>
+                            <Check className="w-2.5 h-2.5" />
+                            <span>Activo</span>
+                          </>
+                        ) : (
+                          <>
+                            <X className="w-2.5 h-2.5" />
+                            <span>Inactivo</span>
+                          </>
+                        )}
                       </span>
                     </td>
                     <td className="px-4 py-2.5">
@@ -251,15 +261,15 @@ const SuppliersManager: React.FC<SuppliersManagerProps> = ({ suppliers, onAdd, o
       {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-8 bg-blue-600 text-white flex justify-between items-center">
-              <h2 className="text-2xl font-black">{editingSupplier ? 'Editar Proveedor' : 'Registrar Proveedor'}</h2>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full">
-                <X className="w-6 h-6" />
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 md:p-8 bg-blue-600 text-white flex justify-between items-center">
+              <h2 className="text-xl md:text-2xl font-black">{editingSupplier ? 'Editar Proveedor' : 'Registrar Proveedor'}</h2>
+              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white/10 rounded-lg">
+                <X className="w-5 h-5 md:w-6 md:h-6" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-8 space-y-6">
+            <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-6">
               <div className="space-y-4">
                 <InputGroup label="Nombre / Razón Social" value={formData.name} onChange={v => setFormData({...formData, name: v})} />
                 <div className="grid grid-cols-2 gap-4">
@@ -281,8 +291,8 @@ const SuppliersManager: React.FC<SuppliersManagerProps> = ({ suppliers, onAdd, o
               </div>
 
               <div className="flex gap-4 pt-4">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-4 bg-slate-100 text-slate-600 font-black rounded-2xl text-sm uppercase tracking-widest">Cancelar</button>
-                <button type="submit" className="flex-[2] py-4 bg-blue-600 text-white font-black rounded-2xl shadow-xl shadow-blue-600/30 text-sm uppercase tracking-widest">Guardar Proveedor</button>
+                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-xs md:text-sm uppercase tracking-wider transition-all">Cancelar</button>
+                <button type="submit" className="flex-[2] py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl shadow-lg shadow-blue-600/30 text-xs md:text-sm uppercase tracking-wider transition-all active:scale-95">Guardar Proveedor</button>
               </div>
             </form>
           </div>

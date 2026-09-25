@@ -51,8 +51,21 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       localStorage.setItem('CUSTOM_GEMINI_API_KEY', apiKey);
     }
 
-    // Simulación de login
-    if (username.toLowerCase() === 'admin') {
+    // Buscar usuario en el personal guardado
+    const savedStaffStr = localStorage.getItem('FARMA_STAFF');
+    let foundUser: User | null = null;
+    if (savedStaffStr) {
+      try {
+        const staffList: User[] = JSON.parse(savedStaffStr);
+        foundUser = staffList.find(u => u.username.toLowerCase() === username.trim().toLowerCase()) || null;
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    if (foundUser) {
+      onLogin(foundUser);
+    } else if (username.toLowerCase() === 'admin') {
       onLogin({ id: '1', name: 'Administrador Principal', role: 'ADMIN', originalRole: 'ADMIN', username: 'admin' });
     } else {
       onLogin({ id: '2', name: 'Vendedor Juan', role: 'EMPLOYEE', originalRole: 'EMPLOYEE', username: 'empleado' });

@@ -454,7 +454,7 @@ const PurchasesManager: React.FC<PurchasesManagerProps> = ({
                   </table>
                 </div>
 
-                <div className="flex justify-between items-center p-4 bg-blue-50 rounded-2xl border border-blue-100">
+                <div className="flex justify-between items-center p-4 bg-blue-50 rounded-xl border border-blue-100">
                    <span className="text-xs font-black text-blue-800 uppercase tracking-widest">Inversión Total Estimada</span>
                    <span className="text-xl font-black text-blue-600">{currencySymbol} {(newPurchase.total || 0).toLocaleString()}</span>
                 </div>
@@ -494,7 +494,7 @@ const PurchasesManager: React.FC<PurchasesManagerProps> = ({
                initial={{ opacity: 0, scale: 0.95, y: 20 }}
                animate={{ opacity: 1, scale: 1, y: 0 }}
                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-               className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl relative z-10 overflow-hidden"
+               className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl relative z-10 overflow-hidden"
             >
                <div className="p-6 bg-emerald-600 text-white flex justify-between items-center">
                   <div className="flex items-center gap-4">
@@ -506,7 +506,7 @@ const PurchasesManager: React.FC<PurchasesManagerProps> = ({
                         <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Nº {selectedPurchase.invoiceNumber}</p>
                      </div>
                   </div>
-                  <button onClick={() => setSelectedPurchase(null)} className="p-2 hover:bg-white/10 rounded-full transition-all">
+                  <button onClick={() => setSelectedPurchase(null)} className="p-2 hover:bg-white/10 rounded-lg transition-all">
                      <X className="w-6 h-6" />
                   </button>
                </div>

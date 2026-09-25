@@ -1,8 +1,7 @@
-
 import React, { useEffect, useRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { LayoutDashboard, ShoppingCart, Pill, BarChart3, Users, Truck, UserCog, ShoppingBag } from 'lucide-react';
-import { User } from '@/types';
+import { User, canUserAccessSection } from '@/types';
 
 interface MobileNavProps {
   activeTab: string;
@@ -10,7 +9,6 @@ interface MobileNavProps {
 }
 
 const MobileNav: React.FC<MobileNavProps> = ({ activeTab, currentUser }) => {
-  const isEmployee = currentUser.role !== 'ADMIN';
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
 
@@ -36,14 +34,30 @@ const MobileNav: React.FC<MobileNavProps> = ({ activeTab, currentUser }) => {
         ref={scrollContainerRef}
         className="flex items-center gap-1 w-full h-full px-4 overflow-x-auto no-scrollbar select-none scroll-smooth"
       >
-        <MobileTabButton to="/dashboard" icon={<LayoutDashboard />} label="Dashboard" />
-        <MobileTabButton to="/pos" icon={<ShoppingCart />} label="POS" />
-        <MobileTabButton to="/inventory" icon={<Pill />} label="Inventario" />
-        {!isEmployee && <MobileTabButton to="/reports" icon={<BarChart3 />} label="Reportes" />}
-        <MobileTabButton to="/customers" icon={<Users />} label="Pacientes" />
-        <MobileTabButton to="/suppliers" icon={<Truck />} label="Provs" />
-        <MobileTabButton to="/purchases" icon={<ShoppingBag />} label="Compras" />
-        {!isEmployee && <MobileTabButton to="/staff" icon={<UserCog />} label="Personal" />}
+        {canUserAccessSection(currentUser, 'DASHBOARD') && (
+          <MobileTabButton to="/dashboard" icon={<LayoutDashboard />} label="Dashboard" />
+        )}
+        {canUserAccessSection(currentUser, 'POS') && (
+          <MobileTabButton to="/pos" icon={<ShoppingCart />} label="POS" />
+        )}
+        {canUserAccessSection(currentUser, 'INVENTORY') && (
+          <MobileTabButton to="/inventory" icon={<Pill />} label="Inventario" />
+        )}
+        {canUserAccessSection(currentUser, 'REPORTS') && (
+          <MobileTabButton to="/reports" icon={<BarChart3 />} label="Reportes" />
+        )}
+        {canUserAccessSection(currentUser, 'CUSTOMERS') && (
+          <MobileTabButton to="/customers" icon={<Users />} label="Pacientes" />
+        )}
+        {canUserAccessSection(currentUser, 'SUPPLIERS') && (
+          <MobileTabButton to="/suppliers" icon={<Truck />} label="Provs" />
+        )}
+        {canUserAccessSection(currentUser, 'PURCHASES') && (
+          <MobileTabButton to="/purchases" icon={<ShoppingBag />} label="Compras" />
+        )}
+        {canUserAccessSection(currentUser, 'STAFF') && (
+          <MobileTabButton to="/staff" icon={<UserCog />} label="Personal" />
+        )}
       </div>
     </nav>
   );
@@ -60,8 +74,8 @@ const MobileTabButton = ({ to, icon, label }: { to: string, icon: any, label: st
       }`
     }
   >
-    {React.cloneElement(icon, { className: 'w-5 h-5 shrink-0 transition-transform active:scale-95' })}
-    <span className="text-[10px] font-black tracking-tight text-center truncate w-full uppercase">{label}</span>
+    {React.cloneElement(icon, { className: 'w-5 h-5' })}
+    <span className="text-[10px] tracking-tight">{label}</span>
   </NavLink>
 );
 
