@@ -84,8 +84,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           <div className="inline-flex bg-emerald-600 p-4 rounded-2xl shadow-xl shadow-emerald-200 mb-4">
             <HeartPulse className="text-white w-10 h-10" />
           </div>
-          <h1 className="text-3xl font-black text-slate-800">FarmaPOS <span className="text-emerald-600">Gestión</span></h1>
-          <p className="text-slate-500 mt-2">Acceso exclusivo para personal autorizado</p>
+          <h1 className="text-3xl font-black text-slate-800">Farmacia <span className="text-emerald-600">Yireh</span></h1>
+          <p className="text-slate-500 mt-2 text-xs font-semibold">Sistema FarmaPOS • Acceso exclusivo para personal</p>
         </div>
 
         <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
@@ -149,6 +149,10 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </div>
           )}
         </div>
+
+        <p className="text-center text-xs text-slate-400 mt-6 font-medium">
+          Desarrollado por <span className="font-black text-slate-700">SoftPlus</span>
+        </p>
       </div>
     </div>
   );

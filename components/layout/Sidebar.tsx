@@ -23,9 +23,14 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, currentUser, onLogout }) =
           <div className="bg-emerald-600 p-2.5 rounded-xl shrink-0 shadow-lg shadow-emerald-900/40">
             <HeartPulse className="text-white w-7 h-7" />
           </div>
-          <span className="text-white font-black text-xl hidden md:block tracking-tight">
-            FarmaPOS <span className="text-emerald-500 text-[10px] block uppercase font-bold tracking-widest">Enterprise ERP</span>
-          </span>
+          <div className="hidden md:block">
+            <span className="text-white font-black text-xl tracking-tight block">
+              Farmacia <span className="text-emerald-400">Yireh</span>
+            </span>
+            <span className="text-slate-400 text-[10px] block uppercase font-bold tracking-widest">
+              FarmaPOS
+            </span>
+          </div>
         </div>
       </div>
 
@@ -70,6 +75,12 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, currentUser, onLogout }) =
           <LogOut className="w-5 h-5 group-hover:rotate-12 transition-transform" />
           <span className="hidden md:block">Cerrar Sesión</span>
         </button>
+
+        <div className="mt-4 pt-3 border-t border-white/5 text-center hidden md:block">
+          <p className="text-[10px] text-slate-500 font-semibold tracking-wide">
+            Desarrollado por <span className="text-emerald-400 font-bold">SoftPlus</span>
+          </p>
+        </div>
       </div>
     </aside>
   );

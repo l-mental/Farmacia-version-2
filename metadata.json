@@ -1,6 +1,6 @@
 {
   "name": "FarmaPOS",
-  "description": "Una plataforma farmacéutica moderna con asistente de salud inteligente impulsado por Gemini, análisis de recetas por visión artificial y gestión de medicamentos.",
+  "description": "Sistema de gestión e inventario farmacéutico desarrollado por SoftPlus para Farmacia Yireh.",
   "requestFramePermissions": [
     "camera"
   ]

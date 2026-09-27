@@ -1,10 +1,12 @@
 import React from 'react';
 import { 
   AlertTriangle, Bell, X, ArrowRight, BatteryCharging, 
-  Volume2, Vibrate, CheckCircle2, ShieldAlert, Sparkles
+  Volume2, Vibrate, CheckCircle2, ShieldAlert, Sparkles, Printer
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ActiveSystemAlert } from '@/hooks/usePeriodicAlerts';
+import { Medication, PharmacyInfo } from '@/types';
+import { printCriticalInventoryReport } from '@/lib/printAlertsReport';
 
 interface SystemNotificationBannerProps {
   alert: ActiveSystemAlert | null;
@@ -12,6 +14,8 @@ interface SystemNotificationBannerProps {
   permissionStatus: NotificationPermission | 'unsupported';
   onRequestPermission: () => void;
   intervalMinutes: number;
+  medications?: Medication[];
+  pharmacyInfo?: PharmacyInfo;
 }
 
 const SystemNotificationBanner: React.FC<SystemNotificationBannerProps> = ({
@@ -19,13 +23,19 @@ const SystemNotificationBanner: React.FC<SystemNotificationBannerProps> = ({
   onDismiss,
   permissionStatus,
   onRequestPermission,
-  intervalMinutes
+  intervalMinutes,
+  medications = [],
+  pharmacyInfo
 }) => {
   const navigate = useNavigate();
 
   if (!alert && permissionStatus !== 'default') {
     return null;
   }
+
+  const handlePrint = () => {
+    printCriticalInventoryReport(medications, pharmacyInfo);
+  };
 
   return (
     <div className="fixed top-3 left-0 right-0 z-[200] px-3 sm:px-6 pointer-events-none flex flex-col items-center gap-2">
@@ -105,16 +115,24 @@ const SystemNotificationBanner: React.FC<SystemNotificationBannerProps> = ({
           </div>
 
           {/* Action buttons */}
-          <div className="mt-3 flex items-center gap-2 pt-1">
+          <div className="mt-3 flex flex-wrap items-center gap-2 pt-1">
             <button
               onClick={() => {
                 onDismiss();
                 navigate('/inventory');
               }}
-              className="flex-1 py-2 px-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20 active:scale-95"
+              className="flex-1 min-w-[140px] py-2 px-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-500/20 active:scale-95"
             >
               <span>Ir a Reabastecer Inventario</span>
               <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={handlePrint}
+              className="py-2 px-3 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-md active:scale-95"
+              title="Generar e imprimir lista de todos los productos vencidos y cortos de stock"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Imprimir</span>
             </button>
             <button
               onClick={onDismiss}

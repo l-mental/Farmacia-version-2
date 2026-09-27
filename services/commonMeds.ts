@@ -7,6 +7,8 @@ export interface MedicationPreset {
   laboratory: string;
   unitsPerBox: number;
   priceBox: number;
+  costPriceBox?: number;
+  profitMarginPercent?: number;
   isControlled: boolean;
   description: string;
   imageUrl: string;
@@ -14,11 +16,39 @@ export interface MedicationPreset {
 
 export const COMMON_MEDICATIONS_PRESETS: MedicationPreset[] = [
   {
+    name: 'Mentisan Ungüento 15g',
+    genericName: 'Alcanfor + Mentol + Aceite de Eucalipto',
+    category: Category.SKINCARE,
+    laboratory: 'Droguería INTI S.A.',
+    unitsPerBox: 12,
+    costPriceBox: 90,
+    profitMarginPercent: 33.3,
+    priceBox: 120,
+    isControlled: false,
+    description: 'Ungüento balsámico descongestionante, calmante muscular y antiséptico.',
+    imageUrl: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=400'
+  },
+  {
+    name: 'Mentisan Ungüento 25g (Lata Grande)',
+    genericName: 'Alcanfor + Mentol + Aceite de Eucalipto',
+    category: Category.SKINCARE,
+    laboratory: 'Droguería INTI S.A.',
+    unitsPerBox: 12,
+    costPriceBox: 150,
+    profitMarginPercent: 33.3,
+    priceBox: 200,
+    isControlled: false,
+    description: 'Ungüento tradicional Mentisan en lata de 25g para alivio respiratorio.',
+    imageUrl: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=400'
+  },
+  {
     name: 'Paracetamol 500mg',
     genericName: 'Paracetamol / Acetaminofén',
     category: Category.PAINKILLERS,
     laboratory: 'Genfar',
     unitsPerBox: 20,
+    costPriceBox: 18,
+    profitMarginPercent: 38.9,
     priceBox: 25,
     isControlled: false,
     description: 'Analgésico y antipirético para el alivio del dolor y la fiebre.',
@@ -30,6 +60,8 @@ export const COMMON_MEDICATIONS_PRESETS: MedicationPreset[] = [
     category: Category.PAINKILLERS,
     laboratory: 'Bagó',
     unitsPerBox: 20,
+    costPriceBox: 25,
+    profitMarginPercent: 40,
     priceBox: 35,
     isControlled: false,
     description: 'Antiinflamatorio no esteroideo y analgésico de rápida acción.',

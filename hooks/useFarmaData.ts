@@ -1,7 +1,25 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Medication, User, SaleItem, InsurancePlan, Customer, SaleRecord, Currency, Supplier, Purchase, PharmacyInfo, PrescriptionData } from '@/types';
-import { MOCK_MEDICATIONS, MOCK_CUSTOMERS, SUPPORTED_CURRENCIES, MOCK_STAFF, MOCK_SUPPLIERS, MOCK_SALES, MOCK_PURCHASES, DEFAULT_PHARMACY_INFO } from '@/constants';
+import { MOCK_MEDICATIONS, MOCK_CUSTOMERS, SUPPORTED_CURRENCIES, MOCK_STAFF, MOCK_SUPPLIERS, MOCK_SALES, MOCK_PURCHASES, DEFAULT_PHARMACY_INFO, DEFAULT_DISCOUNT_PLANS } from '@/constants';
+import { 
+  getStoredSupabaseConfig, 
+  isValidSupabaseConfig,
+  saveSupabaseCredentials, 
+  removeSupabaseCredentials, 
+  testSupabaseConnection, 
+  pushCollectionToSupabase, 
+  pullAllFromSupabase, 
+  subscribeToRealtimeChanges,
+  SUPABASE_SETUP_SQL 
+} from '@/services/supabaseService';
+import { 
+  broadcastSyncEvent, 
+  startAutoSyncListener, 
+  getSyncRoom, 
+  setSyncRoom,
+  getClientInstanceId 
+} from '@/services/autoSyncService';
 
 export const useFarmaData = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -14,16 +32,36 @@ export const useFarmaData = () => {
     return saved ? JSON.parse(saved) : DEFAULT_PHARMACY_INFO;
   });
 
-  const [medications, setMedications] = useState<Medication[]>(() => {
-    const saved = localStorage.getItem('FARMA_MEDS');
+  const [discountPlans, setDiscountPlans] = useState<InsurancePlan[]>(() => {
+    const saved = localStorage.getItem('FARMA_DISCOUNTS');
     if (saved !== null) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {
         console.error(e);
       }
     }
-    return MOCK_MEDICATIONS;
+    return DEFAULT_DISCOUNT_PLANS;
+  });
+
+  const sortAlphabetical = (list: Medication[]): Medication[] => {
+    return [...list].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+  };
+
+  const [medications, setMedications] = useState<Medication[]>(() => {
+    const saved = localStorage.getItem('FARMA_MEDS');
+    if (saved !== null) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return sortAlphabetical(parsed);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    return sortAlphabetical(MOCK_MEDICATIONS);
   });
 
   const [customers, setCustomers] = useState<Customer[]>(() => {
@@ -101,33 +139,265 @@ export const useFarmaData = () => {
     return localStorage.getItem('FARMA_DARK_MODE') === 'true';
   });
 
-  // Persistence Effects
+  // Cloud Sync (Supabase - Optional custom cloud database)
+  const [isCloudConnected, setIsCloudConnected] = useState<boolean>(() => {
+    const { url, anonKey } = getStoredSupabaseConfig();
+    return isValidSupabaseConfig(url, anonKey);
+  });
+  const [cloudLastSync, setCloudLastSync] = useState<string | null>(() => localStorage.getItem('FARMA_SUPABASE_LAST_SYNC'));
+  const [isSyncingWithCloud, setIsSyncingWithCloud] = useState<boolean>(false);
+  const isApplyingRemoteRef = useRef(false);
+  const isInitialLoadedRef = useRef(false);
+
+  // 100% AUTOMATIC REAL-TIME SYNC FOR 4 COMPUTERS (Zero Setup, Zero Database Configuration)
+  const [isAutoSyncConnected, setIsAutoSyncConnected] = useState<boolean>(true);
+  const [autoSyncRoom, setAutoSyncRoomState] = useState<string>(() => getSyncRoom());
+  const [autoSyncLastTime, setAutoSyncLastTime] = useState<string>(() => new Date().toLocaleTimeString('es-ES'));
+  const isHandlingRemoteSyncRef = useRef(false);
+
+  // Automatic Real-Time Listener for the 4 Computers
+  useEffect(() => {
+    const unsub = startAutoSyncListener((msg) => {
+      isHandlingRemoteSyncRef.current = true;
+      try {
+        switch (msg.type) {
+          case 'SALE_COMPLETED': {
+            if (msg.payload?.sale) {
+              setSales(prev => {
+                if (prev.some(s => s.id === msg.payload.sale.id)) return prev;
+                return [msg.payload.sale, ...prev];
+              });
+            }
+            if (msg.payload?.updatedMeds && Array.isArray(msg.payload.updatedMeds)) {
+              setMedications(sortAlphabetical(msg.payload.updatedMeds));
+            }
+            break;
+          }
+          case 'PURCHASE_REGISTERED': {
+            if (msg.payload?.purchase) {
+              setPurchases(prev => {
+                if (prev.some(p => p.id === msg.payload.purchase.id)) return prev;
+                return [msg.payload.purchase, ...prev];
+              });
+            }
+            if (msg.payload?.updatedMeds && Array.isArray(msg.payload.updatedMeds)) {
+              setMedications(sortAlphabetical(msg.payload.updatedMeds));
+            }
+            break;
+          }
+          case 'CUSTOMER_ADDED': {
+            if (msg.payload?.customer) {
+              setCustomers(prev => {
+                if (prev.some(c => c.id === msg.payload.customer.id)) return prev;
+                return [...prev, msg.payload.customer];
+              });
+            }
+            break;
+          }
+          case 'MED_UPDATED':
+          case 'MED_DELETED':
+          case 'MEDS_BATCH_ADDED': {
+            if (msg.payload?.updatedMeds && Array.isArray(msg.payload.updatedMeds)) {
+              setMedications(sortAlphabetical(msg.payload.updatedMeds));
+            } else if (msg.payload?.newMeds && Array.isArray(msg.payload.newMeds)) {
+              setMedications(sortAlphabetical(msg.payload.newMeds));
+            }
+            break;
+          }
+          case 'DISCOUNTS_UPDATED': {
+            if (msg.payload?.discountPlans && Array.isArray(msg.payload.discountPlans)) {
+              setDiscountPlans(msg.payload.discountPlans);
+            }
+            break;
+          }
+          case 'PHARMACY_INFO_UPDATED': {
+            if (msg.payload?.pharmacyInfo) {
+              setPharmacyInfo(msg.payload.pharmacyInfo);
+            }
+            break;
+          }
+          case 'CLEAR_DEMO': {
+            setMedications([]);
+            setCustomers([]);
+            setSales([]);
+            setPurchases([]);
+            break;
+          }
+          case 'REQUEST_SYNC': {
+            if (medications.length > 0) {
+              broadcastSyncEvent('PROVIDE_SYNC', {
+                medications,
+                customers,
+                sales,
+                purchases,
+                suppliers,
+                pharmacyInfo,
+                discountPlans
+              });
+            }
+            break;
+          }
+          case 'PROVIDE_SYNC': {
+            if (msg.payload) {
+              if (Array.isArray(msg.payload.medications) && msg.payload.medications.length > 0) {
+                setMedications(sortAlphabetical(msg.payload.medications));
+              }
+              if (Array.isArray(msg.payload.customers) && msg.payload.customers.length > 0) {
+                setCustomers(msg.payload.customers);
+              }
+              if (Array.isArray(msg.payload.sales) && msg.payload.sales.length > 0) {
+                setSales(msg.payload.sales);
+              }
+              if (Array.isArray(msg.payload.purchases) && msg.payload.purchases.length > 0) {
+                setPurchases(msg.payload.purchases);
+              }
+              if (Array.isArray(msg.payload.suppliers) && msg.payload.suppliers.length > 0) {
+                setSuppliers(msg.payload.suppliers);
+              }
+              if (msg.payload.pharmacyInfo) setPharmacyInfo(msg.payload.pharmacyInfo);
+              if (Array.isArray(msg.payload.discountPlans) && msg.payload.discountPlans.length > 0) {
+                setDiscountPlans(msg.payload.discountPlans);
+              }
+            }
+            break;
+          }
+        }
+        setAutoSyncLastTime(new Date().toLocaleTimeString('es-ES'));
+      } finally {
+        setTimeout(() => {
+          isHandlingRemoteSyncRef.current = false;
+        }, 300);
+      }
+    }, (connected) => {
+      setIsAutoSyncConnected(connected);
+    });
+
+    return () => {
+      unsub();
+    };
+  }, [medications, customers, sales, purchases, suppliers, pharmacyInfo, discountPlans]);
+
+  // Initial Cloud Load and Realtime Subscription
+  useEffect(() => {
+    const { url, anonKey } = getStoredSupabaseConfig();
+    if (isValidSupabaseConfig(url, anonKey)) {
+      setIsSyncingWithCloud(true);
+      pullAllFromSupabase().then(res => {
+        if (res.success && res.data && Object.keys(res.data).length > 0) {
+          isApplyingRemoteRef.current = true;
+          if (res.data.medications && Array.isArray(res.data.medications)) {
+            setMedications(sortAlphabetical(res.data.medications));
+          }
+          if (res.data.customers && Array.isArray(res.data.customers)) {
+            setCustomers(res.data.customers);
+          }
+          if (res.data.sales && Array.isArray(res.data.sales)) {
+            setSales(res.data.sales);
+          }
+          if (res.data.suppliers && Array.isArray(res.data.suppliers)) {
+            setSuppliers(res.data.suppliers);
+          }
+          if (res.data.purchases && Array.isArray(res.data.purchases)) {
+            setPurchases(res.data.purchases);
+          }
+          if (res.data.pharmacyInfo) {
+            setPharmacyInfo(res.data.pharmacyInfo);
+          }
+          if (res.data.discountPlans && Array.isArray(res.data.discountPlans)) {
+            setDiscountPlans(res.data.discountPlans);
+          }
+          setCloudLastSync(new Date().toLocaleTimeString('es-ES'));
+          setTimeout(() => {
+            isApplyingRemoteRef.current = false;
+            isInitialLoadedRef.current = true;
+          }, 350);
+        } else {
+          isInitialLoadedRef.current = true;
+        }
+      }).catch(err => {
+        console.warn('Error al sincronizar con Supabase al iniciar:', err);
+        isInitialLoadedRef.current = true;
+      }).finally(() => {
+        setIsSyncingWithCloud(false);
+      });
+
+      const unsub = subscribeToRealtimeChanges((collectionId, data) => {
+        isApplyingRemoteRef.current = true;
+        if (collectionId === 'medications' && Array.isArray(data)) {
+          setMedications(sortAlphabetical(data));
+        } else if (collectionId === 'customers' && Array.isArray(data)) {
+          setCustomers(data);
+        } else if (collectionId === 'sales' && Array.isArray(data)) {
+          setSales(data);
+        } else if (collectionId === 'purchases' && Array.isArray(data)) {
+          setPurchases(data);
+        } else if (collectionId === 'suppliers' && Array.isArray(data)) {
+          setSuppliers(data);
+        } else if (collectionId === 'pharmacyInfo') {
+          setPharmacyInfo(data);
+        } else if (collectionId === 'discountPlans' && Array.isArray(data)) {
+          setDiscountPlans(data);
+        }
+        setCloudLastSync(new Date().toLocaleTimeString('es-ES'));
+        setTimeout(() => {
+          isApplyingRemoteRef.current = false;
+        }, 350);
+      });
+
+      return () => {
+        unsub();
+      };
+    } else {
+      isInitialLoadedRef.current = true;
+    }
+  }, []);
+
+  // Persistence Effects (Local Storage + Cloud Auto-Push)
   useEffect(() => {
     localStorage.setItem('FARMA_ACTIVE_REGISTER', activeCashRegister);
   }, [activeCashRegister]);
+
   useEffect(() => {
     localStorage.setItem('FARMA_MEDS', JSON.stringify(medications));
-  }, [medications]);
+    if (isInitialLoadedRef.current && !isApplyingRemoteRef.current && isCloudConnected) {
+      pushCollectionToSupabase('medications', medications);
+    }
+  }, [medications, isCloudConnected]);
 
   useEffect(() => {
     localStorage.setItem('FARMA_CUSTOMERS', JSON.stringify(customers));
-  }, [customers]);
+    if (isInitialLoadedRef.current && !isApplyingRemoteRef.current && isCloudConnected) {
+      pushCollectionToSupabase('customers', customers);
+    }
+  }, [customers, isCloudConnected]);
 
   useEffect(() => {
     localStorage.setItem('FARMA_STAFF', JSON.stringify(staff));
-  }, [staff]);
+    if (isInitialLoadedRef.current && !isApplyingRemoteRef.current && isCloudConnected) {
+      pushCollectionToSupabase('staff', staff);
+    }
+  }, [staff, isCloudConnected]);
 
   useEffect(() => {
     localStorage.setItem('FARMA_SALES', JSON.stringify(sales));
-  }, [sales]);
+    if (isInitialLoadedRef.current && !isApplyingRemoteRef.current && isCloudConnected) {
+      pushCollectionToSupabase('sales', sales);
+    }
+  }, [sales, isCloudConnected]);
 
   useEffect(() => {
     localStorage.setItem('FARMA_SUPPLIERS', JSON.stringify(suppliers));
-  }, [suppliers]);
+    if (isInitialLoadedRef.current && !isApplyingRemoteRef.current && isCloudConnected) {
+      pushCollectionToSupabase('suppliers', suppliers);
+    }
+  }, [suppliers, isCloudConnected]);
 
   useEffect(() => {
     localStorage.setItem('FARMA_PURCHASES', JSON.stringify(purchases));
-  }, [purchases]);
+    if (isInitialLoadedRef.current && !isApplyingRemoteRef.current && isCloudConnected) {
+      pushCollectionToSupabase('purchases', purchases);
+    }
+  }, [purchases, isCloudConnected]);
 
   useEffect(() => {
     localStorage.setItem('FARMA_CURRENCY', JSON.stringify(currency));
@@ -135,7 +405,17 @@ export const useFarmaData = () => {
 
   useEffect(() => {
     localStorage.setItem('FARMA_PHARMACY_INFO', JSON.stringify(pharmacyInfo));
-  }, [pharmacyInfo]);
+    if (isInitialLoadedRef.current && !isApplyingRemoteRef.current && isCloudConnected) {
+      pushCollectionToSupabase('pharmacyInfo', pharmacyInfo);
+    }
+  }, [pharmacyInfo, isCloudConnected]);
+
+  useEffect(() => {
+    localStorage.setItem('FARMA_DISCOUNTS', JSON.stringify(discountPlans));
+    if (isInitialLoadedRef.current && !isApplyingRemoteRef.current && isCloudConnected) {
+      pushCollectionToSupabase('discountPlans', discountPlans);
+    }
+  }, [discountPlans, isCloudConnected]);
 
   useEffect(() => {
     localStorage.setItem('FARMA_DARK_MODE', darkMode.toString());
@@ -170,6 +450,7 @@ export const useFarmaData = () => {
 
   const handleAddPatient = (patient: Customer) => {
     setCustomers(prev => [...prev, patient]);
+    broadcastSyncEvent('CUSTOMER_ADDED', { customer: patient });
   };
 
   const handleCompleteSale = (
@@ -247,6 +528,10 @@ export const useFarmaData = () => {
       return med;
     });
     setMedications(updatedMeds);
+
+    // Auto-broadcast instant stock reduction and sale to the other 3 computers
+    broadcastSyncEvent('SALE_COMPLETED', { sale: newSale, updatedMeds });
+
     return newSale;
   };
 
@@ -287,19 +572,52 @@ export const useFarmaData = () => {
       return med;
     });
     setMedications(updatedMeds);
+
+    // Auto-broadcast purchase and new stock to all 4 computers
+    broadcastSyncEvent('PURCHASE_REGISTERED', { purchase, updatedMeds });
+  };
+
+  const handleAddMedication = (newMed: Medication) => {
+    setMedications(prev => {
+      const updated = sortAlphabetical([...prev, newMed]);
+      localStorage.setItem('FARMA_MEDS', JSON.stringify(updated));
+      broadcastSyncEvent('MED_UPDATED', { updatedMeds: updated });
+      return updated;
+    });
+  };
+
+  const handleUpdateMedication = (updatedMed: Medication) => {
+    setMedications(prev => {
+      const updated = prev.map(m => m.id === updatedMed.id ? updatedMed : m);
+      localStorage.setItem('FARMA_MEDS', JSON.stringify(updated));
+      broadcastSyncEvent('MED_UPDATED', { updatedMeds: updated });
+      return updated;
+    });
+  };
+
+  const handleDeleteMedication = (id: string) => {
+    setMedications(prev => {
+      const updated = prev.filter(m => m.id !== id);
+      localStorage.setItem('FARMA_MEDS', JSON.stringify(updated));
+      broadcastSyncEvent('MED_UPDATED', { updatedMeds: updated });
+      return updated;
+    });
   };
 
   const handleBatchAddMeds = (newMeds: Medication[]) => {
     setMedications(prev => {
-      const merged = [...prev, ...newMeds];
+      const merged = sortAlphabetical([...prev, ...newMeds]);
       localStorage.setItem('FARMA_MEDS', JSON.stringify(merged));
+      broadcastSyncEvent('MEDS_BATCH_ADDED', { newMeds: merged });
       return merged;
     });
   };
 
   const handleReplaceMeds = (newMeds: Medication[]) => {
-    setMedications(newMeds);
-    localStorage.setItem('FARMA_MEDS', JSON.stringify(newMeds));
+    const sorted = sortAlphabetical(newMeds);
+    setMedications(sorted);
+    localStorage.setItem('FARMA_MEDS', JSON.stringify(sorted));
+    broadcastSyncEvent('MEDS_BATCH_ADDED', { newMeds: sorted });
   };
 
   const handleClearDemoData = () => {
@@ -311,11 +629,171 @@ export const useFarmaData = () => {
     localStorage.setItem('FARMA_CUSTOMERS', JSON.stringify([]));
     localStorage.setItem('FARMA_SALES', JSON.stringify([]));
     localStorage.setItem('FARMA_PURCHASES', JSON.stringify([]));
+    broadcastSyncEvent('CLEAR_DEMO', {});
   };
 
   const handleClearAllInventory = () => {
     setMedications([]);
     localStorage.setItem('FARMA_MEDS', JSON.stringify([]));
+    broadcastSyncEvent('MEDS_BATCH_ADDED', { newMeds: [] });
+  };
+
+  const handleExportFullBackup = () => {
+    const data = {
+      exportedAt: new Date().toISOString(),
+      system: 'FarmaPOS - Farmacia Yireh (SoftPlus)',
+      version: '1.0',
+      medications,
+      customers,
+      staff,
+      sales,
+      suppliers,
+      purchases,
+      pharmacyInfo,
+      discountPlans,
+      currency,
+      businessQR
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `FarmaPOS_Yireh_Respaldo_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportFullBackup = (importedData: any) => {
+    if (!importedData || typeof importedData !== 'object') {
+      throw new Error('Archivo de respaldo no válido.');
+    }
+    if (Array.isArray(importedData.medications)) {
+      const sorted = sortAlphabetical(importedData.medications);
+      setMedications(sorted);
+      localStorage.setItem('FARMA_MEDS', JSON.stringify(sorted));
+    }
+    if (Array.isArray(importedData.customers)) {
+      setCustomers(importedData.customers);
+      localStorage.setItem('FARMA_CUSTOMERS', JSON.stringify(importedData.customers));
+    }
+    if (Array.isArray(importedData.staff)) {
+      setStaff(importedData.staff);
+      localStorage.setItem('FARMA_STAFF', JSON.stringify(importedData.staff));
+    }
+    if (Array.isArray(importedData.sales)) {
+      setSales(importedData.sales);
+      localStorage.setItem('FARMA_SALES', JSON.stringify(importedData.sales));
+    }
+    if (Array.isArray(importedData.suppliers)) {
+      setSuppliers(importedData.suppliers);
+      localStorage.setItem('FARMA_SUPPLIERS', JSON.stringify(importedData.suppliers));
+    }
+    if (Array.isArray(importedData.purchases)) {
+      setPurchases(importedData.purchases);
+      localStorage.setItem('FARMA_PURCHASES', JSON.stringify(importedData.purchases));
+    }
+    if (importedData.pharmacyInfo && typeof importedData.pharmacyInfo === 'object') {
+      setPharmacyInfo(importedData.pharmacyInfo);
+      localStorage.setItem('FARMA_PHARMACY_INFO', JSON.stringify(importedData.pharmacyInfo));
+    }
+    if (Array.isArray(importedData.discountPlans)) {
+      setDiscountPlans(importedData.discountPlans);
+      localStorage.setItem('FARMA_DISCOUNTS', JSON.stringify(importedData.discountPlans));
+    }
+    if (importedData.currency) {
+      setCurrency(importedData.currency);
+      localStorage.setItem('FARMA_CURRENCY', JSON.stringify(importedData.currency));
+    }
+    if (importedData.businessQR !== undefined) {
+      setBusinessQR(importedData.businessQR);
+      if (importedData.businessQR) {
+        localStorage.setItem('FARMA_QR', importedData.businessQR);
+      } else {
+        localStorage.removeItem('FARMA_QR');
+      }
+    }
+  };
+
+  const handleUpdateDiscountPlans = (plans: InsurancePlan[]) => {
+    setDiscountPlans(plans);
+    localStorage.setItem('FARMA_DISCOUNTS', JSON.stringify(plans));
+  };
+
+  const handleAddDiscountPlan = (plan: Omit<InsurancePlan, 'id'>) => {
+    const newPlan: InsurancePlan = {
+      ...plan,
+      id: 'DSC_' + Date.now().toString(36)
+    };
+    const updated = [...discountPlans, newPlan];
+    setDiscountPlans(updated);
+    localStorage.setItem('FARMA_DISCOUNTS', JSON.stringify(updated));
+    return newPlan;
+  };
+
+  const handleDeleteDiscountPlan = (id: string) => {
+    const updated = discountPlans.filter(p => p.id !== id);
+    setDiscountPlans(updated);
+    localStorage.setItem('FARMA_DISCOUNTS', JSON.stringify(updated));
+  };
+
+  const handleConnectCloud = async (url: string, anonKey: string) => {
+    try {
+      saveSupabaseCredentials(url, anonKey);
+      setIsCloudConnected(true);
+      return await handleManualCloudSync();
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Error al conectar con Supabase.' };
+    }
+  };
+
+  const handleDisconnectCloud = () => {
+    removeSupabaseCredentials();
+    setIsCloudConnected(false);
+    setCloudLastSync(null);
+  };
+
+  const handleManualCloudSync = async () => {
+    setIsSyncingWithCloud(true);
+    try {
+      await Promise.all([
+        pushCollectionToSupabase('medications', medications),
+        pushCollectionToSupabase('customers', customers),
+        pushCollectionToSupabase('sales', sales),
+        pushCollectionToSupabase('suppliers', suppliers),
+        pushCollectionToSupabase('purchases', purchases),
+        pushCollectionToSupabase('pharmacyInfo', pharmacyInfo),
+        pushCollectionToSupabase('discountPlans', discountPlans)
+      ]);
+      const nowStr = new Date().toLocaleTimeString('es-ES');
+      setCloudLastSync(nowStr);
+      setIsCloudConnected(true);
+      return { success: true, message: `Sincronización completa a las ${nowStr}.` };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Error al sincronizar con Supabase.' };
+    } finally {
+      setIsSyncingWithCloud(false);
+    }
+  };
+
+  const handleTestCloudConnection = async (url: string, anonKey: string) => {
+    return await testSupabaseConnection(url, anonKey);
+  };
+
+  const handleTriggerAutoSync = async () => {
+    const ok = await broadcastSyncEvent('PROVIDE_SYNC', {
+      medications,
+      customers,
+      sales,
+      purchases,
+      suppliers,
+      pharmacyInfo,
+      discountPlans
+    });
+    setAutoSyncLastTime(new Date().toLocaleTimeString('es-ES'));
+    return {
+      success: ok,
+      message: ok ? '¡Datos transmitidos con éxito a todas las computadoras y celulares!' : 'No se pudo sincronizar. Revisa la conexión a internet.'
+    };
   };
 
   const resetToMockData = () => {
@@ -326,6 +804,7 @@ export const useFarmaData = () => {
     localStorage.removeItem('FARMA_SUPPLIERS');
     localStorage.removeItem('FARMA_PURCHASES');
     localStorage.removeItem('FARMA_PHARMACY_INFO');
+    localStorage.removeItem('FARMA_DISCOUNTS');
     
     setMedications(MOCK_MEDICATIONS);
     setCustomers(MOCK_CUSTOMERS);
@@ -334,6 +813,7 @@ export const useFarmaData = () => {
     setSuppliers(MOCK_SUPPLIERS);
     setPurchases(MOCK_PURCHASES);
     setPharmacyInfo(DEFAULT_PHARMACY_INFO);
+    setDiscountPlans(DEFAULT_DISCOUNT_PLANS);
   };
 
   return {
@@ -345,6 +825,7 @@ export const useFarmaData = () => {
     sales,
     suppliers,
     purchases,
+    discountPlans,
     currency,
     activeCashRegister,
     businessQR,
@@ -357,6 +838,9 @@ export const useFarmaData = () => {
     setSales,
     setSuppliers,
     setPurchases,
+    setDiscountPlans: handleUpdateDiscountPlans,
+    handleAddDiscountPlan,
+    handleDeleteDiscountPlan,
     setCurrency,
     setActiveCashRegister,
     setBusinessQR,
@@ -367,10 +851,26 @@ export const useFarmaData = () => {
     handleAddPatient,
     handleCompleteSale,
     handleRegisterPurchase,
+    handleAddMedication,
+    handleUpdateMedication,
+    handleDeleteMedication,
     handleBatchAddMeds,
     handleReplaceMeds,
     handleClearDemoData,
     handleClearAllInventory,
+    handleExportFullBackup,
+    handleImportFullBackup,
+    isCloudConnected,
+    cloudLastSync,
+    isSyncingWithCloud,
+    handleConnectCloud,
+    handleDisconnectCloud,
+    handleManualCloudSync,
+    handleTestCloudConnection,
+    isAutoSyncConnected,
+    autoSyncRoom,
+    autoSyncLastTime,
+    handleTriggerAutoSync,
     resetToMockData
   };
 };

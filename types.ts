@@ -99,6 +99,9 @@ export interface Medication {
   description: string;
   priceBox: number;
   priceUnit: number;
+  costPriceBox?: number; // Precio de compra / costo por caja
+  costPriceUnit?: number; // Precio de costo por unidad suelta
+  profitMarginPercent?: number; // Porcentaje de ganancia (%)
   unitsPerBox: number;
   category: Category;
   imageUrl: string;
@@ -137,6 +140,7 @@ export interface SaleItem {
   isFractional: boolean;
   selectedBatch: string;
   subtotal: number;
+  customPrice?: number; // Precio de venta personalizado al momento de vender
 }
 
 export interface PrescriptionData {

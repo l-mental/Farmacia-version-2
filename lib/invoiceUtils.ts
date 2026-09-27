@@ -309,7 +309,7 @@ export const generate5x8Invoice = async (
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
   doc.setTextColor(20, 30, 45);
-  const pharmacyName = (pharmacyInfo.commercialName || pharmacyInfo.name || 'FARMACIA FARMASALUD').toUpperCase();
+  const pharmacyName = (pharmacyInfo.commercialName || pharmacyInfo.name || 'FARMACIA YIREH').toUpperCase();
   doc.text(pharmacyName, margin + 3, y);
   
   y += 4;
@@ -829,10 +829,10 @@ export const generateReportPDF = (title: string, data: any[], columns: string[],
   
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
-  doc.text('FARMASALUD BOLIVIA', margin + 20, 12);
+  doc.text('FARMACIA YIREH', margin + 20, 12);
   doc.setFontSize(7);
   doc.setFont('helvetica', 'normal');
-  doc.text('Seccional La Paz - Sede Central', margin + 20, 16);
+  doc.text('Sistema FarmaPOS - Desarrollado por SoftPlus', margin + 20, 16);
   
   const now = new Date();
   doc.setFontSize(7);
@@ -892,7 +892,7 @@ export const generateReportPDF = (title: string, data: any[], columns: string[],
   doc.setFontSize(8);
   doc.text('Firmado por:', margin, y);
   doc.setFont('helvetica', 'bold');
-  doc.text('SISTEMA AUTOMATIZADO FARMASALUD - MARCA REGISTRADA', pageWidth / 2, y, { align: 'center' });
+  doc.text('FARMACIA YIREH • SOFTWARE FARMAPOS (SOFTPLUS)', pageWidth / 2, y, { align: 'center' });
   
   y += 10;
   doc.setFontSize(7);

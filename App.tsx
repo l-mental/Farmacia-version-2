@@ -36,6 +36,7 @@ const AppContent: React.FC = () => {
     businessQR,
     isOnline,
     darkMode,
+    discountPlans,
     setPharmacyInfo,
     setMedications,
     setStaff,
@@ -51,10 +52,24 @@ const AppContent: React.FC = () => {
     handleAddPatient,
     handleCompleteSale,
     handleRegisterPurchase,
+    handleAddMedication,
+    handleUpdateMedication,
+    handleDeleteMedication,
     handleBatchAddMeds,
     handleReplaceMeds,
     handleClearDemoData,
     handleClearAllInventory,
+    handleExportFullBackup,
+    handleImportFullBackup,
+    handleAddDiscountPlan,
+    handleDeleteDiscountPlan,
+    isCloudConnected,
+    cloudLastSync,
+    isSyncingWithCloud,
+    handleConnectCloud,
+    handleDisconnectCloud,
+    handleManualCloudSync,
+    handleTestCloudConnection,
     resetToMockData
   } = useFarmaData();
 
@@ -108,6 +123,8 @@ const AppContent: React.FC = () => {
         permissionStatus={permissionStatus}
         onRequestPermission={requestPermission}
         intervalMinutes={notificationSettings.intervalMinutes}
+        medications={medications}
+        pharmacyInfo={pharmacyInfo}
       />
 
       <Sidebar 
@@ -129,11 +146,15 @@ const AppContent: React.FC = () => {
           currentUserOriginalRole={currentUser.originalRole}
           onSwitchRole={handleSwitchRole}
           medications={medications}
+          pharmacyInfo={pharmacyInfo}
           notificationSettings={notificationSettings}
           onUpdateNotificationSettings={updateNotificationSettings}
           onTriggerTestAlert={triggerTestAlert}
           permissionStatus={permissionStatus}
           onRequestPermission={requestPermission}
+          isCloudConnected={isCloudConnected}
+          cloudLastSync={cloudLastSync}
+          isSyncingWithCloud={isSyncingWithCloud}
         />
 
         <div className="flex-1 overflow-y-auto">
@@ -159,6 +180,8 @@ const AppContent: React.FC = () => {
                   currentUser={currentUser}
                   activeCashRegister={activeCashRegister}
                   onChangeCashRegister={setActiveCashRegister}
+                  discountPlans={discountPlans}
+                  onAddDiscountPlan={handleAddDiscountPlan}
                 />
               ) : <Navigate to={defaultPath} replace />
             } />
@@ -167,15 +190,16 @@ const AppContent: React.FC = () => {
               canUserAccessSection(currentUser, 'INVENTORY') ? (
                 <InventoryManager 
                   medications={medications} 
-                  onAdd={(m) => setMedications(prev => [...prev, m])} 
+                  onAdd={handleAddMedication} 
                   onBatchAdd={handleBatchAddMeds}
                   onReplaceAll={handleReplaceMeds}
                   onClearInventory={handleClearAllInventory}
-                  onUpdate={(m) => setMedications(prev => prev.map(x => x.id === m.id ? m : x))} 
-                  onDelete={(id) => setMedications(prev => prev.filter(x => x.id !== id))}
+                  onUpdate={handleUpdateMedication} 
+                  onDelete={handleDeleteMedication}
                   currencySymbol={currency.symbol}
                   currentUser={currentUser}
                   currentUserRole={currentUser.role}
+                  pharmacyInfo={pharmacyInfo}
                 />
               ) : <Navigate to={defaultPath} replace />
             } />
@@ -258,13 +282,25 @@ const AppContent: React.FC = () => {
         setBusinessQR={setBusinessQR}
         pharmacyInfo={pharmacyInfo}
         setPharmacyInfo={setPharmacyInfo}
+        discountPlans={discountPlans}
+        onAddDiscountPlan={handleAddDiscountPlan}
+        onDeleteDiscountPlan={handleDeleteDiscountPlan}
         onClearDemoData={handleClearDemoData}
+        onExportBackup={handleExportFullBackup}
+        onImportBackup={handleImportFullBackup}
         currentUserRole={currentUser.role}
         notificationSettings={notificationSettings}
         onUpdateNotificationSettings={updateNotificationSettings}
         onTriggerTestAlert={triggerTestAlert}
         permissionStatus={permissionStatus}
         onRequestPermission={requestPermission}
+        isCloudConnected={isCloudConnected}
+        cloudLastSync={cloudLastSync}
+        isSyncingWithCloud={isSyncingWithCloud}
+        onConnectCloud={handleConnectCloud}
+        onDisconnectCloud={handleDisconnectCloud}
+        onManualCloudSync={handleManualCloudSync}
+        onTestCloudConnection={handleTestCloudConnection}
       />
 
       <NewPatientModal 

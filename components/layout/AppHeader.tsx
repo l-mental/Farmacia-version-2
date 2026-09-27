@@ -3,11 +3,12 @@ import React, { useState } from 'react';
 import { 
   Globe, Settings, LogOut, Sun, Moon, Shield, User as UserIcon, 
   Bell, AlertOctagon, Clock, X, ChevronRight, Volume2, Vibrate, 
-  Smartphone, Monitor, Sparkles, Check
+  Smartphone, Monitor, Sparkles, Check, Printer, Cloud
 } from 'lucide-react';
-import { Currency, Medication, UserRole } from '@/types';
+import { Currency, Medication, UserRole, PharmacyInfo } from '@/types';
 import { NotificationSettings } from '@/services/notificationService';
 import { useNavigate } from 'react-router-dom';
+import { printCriticalInventoryReport } from '@/lib/printAlertsReport';
 
 interface AppHeaderProps {
   activeTab: string;
@@ -21,11 +22,15 @@ interface AppHeaderProps {
   currentUserOriginalRole?: UserRole;
   onSwitchRole: (role: UserRole) => void;
   medications?: Medication[];
+  pharmacyInfo?: PharmacyInfo;
   notificationSettings?: NotificationSettings;
   onUpdateNotificationSettings?: (settings: Partial<NotificationSettings>) => void;
   onTriggerTestAlert?: () => void;
   permissionStatus?: NotificationPermission | 'unsupported';
   onRequestPermission?: () => void;
+  isCloudConnected?: boolean;
+  cloudLastSync?: string | null;
+  isSyncingWithCloud?: boolean;
 }
 
 const TAB_LABELS: Record<string, string> = {
@@ -51,11 +56,15 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   currentUserOriginalRole = 'ADMIN',
   onSwitchRole,
   medications = [],
+  pharmacyInfo,
   notificationSettings,
   onUpdateNotificationSettings,
   onTriggerTestAlert,
   permissionStatus,
-  onRequestPermission
+  onRequestPermission,
+  isCloudConnected = false,
+  cloudLastSync = null,
+  isSyncingWithCloud = false
 }) => {
   const displayTab = TAB_LABELS[activeTab] || activeTab;
   const navigate = useNavigate();
@@ -92,7 +101,9 @@ const AppHeader: React.FC<AppHeaderProps> = ({
       <div className="flex items-center gap-3">
         <div className="w-1.5 h-5 md:h-6 bg-emerald-500 rounded-full" />
         <div className="flex flex-col">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none mb-1">FarmaPOS</span>
+          <span className="text-[10px] font-black text-emerald-600 uppercase tracking-wider leading-none mb-1">
+            Farmacia Yireh <span className="text-slate-400 font-medium">| SoftPlus</span>
+          </span>
           <h2 className="text-sm md:text-base font-bold text-slate-800 tracking-tight">{displayTab}</h2>
         </div>
       </div>
@@ -351,13 +362,24 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                 </div>
               )}
 
-              <div className="pt-2 border-t border-slate-100">
+              <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    printCriticalInventoryReport(medications, pharmacyInfo);
+                  }}
+                  className="w-full py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-sm active:scale-95 cursor-pointer"
+                  title="Generar e imprimir lista de todos los productos vencidos y cortos de stock"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Imprimir Lista (Vencidos y Bajo Stock)</span>
+                </button>
                 <button
                   onClick={() => {
                     setIsAlertsOpen(false);
                     navigate('/inventory');
                   }}
-                  className="w-full py-2.5 bg-slate-900 hover:bg-black text-white text-xs font-black rounded-xl uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all"
+                  className="w-full py-2 bg-slate-900 hover:bg-black text-white text-xs font-black rounded-xl uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                 >
                   <span>Ir a Gestión de Inventario</span>
                   <ChevronRight className="w-3.5 h-3.5" />
@@ -379,6 +401,21 @@ const AppHeader: React.FC<AppHeaderProps> = ({
           {darkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
           <span className="text-[10px] font-black uppercase tracking-wider hidden md:block">
             {darkMode ? 'M. Claro' : 'M. Oscuro'}
+          </span>
+        </button>
+
+        <button
+          onClick={onOpenSettings}
+          className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border transition-all cursor-pointer ${
+            isCloudConnected 
+              ? 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100 shadow-sm' 
+              : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'
+          }`}
+          title={isCloudConnected ? `Supabase Conectado. Sincronización en tiempo real activa. ${cloudLastSync ? `Última sinc: ${cloudLastSync}` : ''}` : 'Nube no conectada. Haz clic aquí para conectar Supabase.'}
+        >
+          <Cloud className={`w-3.5 h-3.5 ${isSyncingWithCloud ? 'animate-bounce text-emerald-600' : isCloudConnected ? 'text-emerald-600' : 'text-slate-400'}`} />
+          <span className="text-[10px] font-black uppercase tracking-wider hidden sm:inline">
+            {isSyncingWithCloud ? 'Sincronizando...' : isCloudConnected ? 'Nube Activa' : 'Modo Local'}
           </span>
         </button>
 

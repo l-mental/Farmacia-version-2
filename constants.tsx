@@ -2,21 +2,23 @@
 import { Medication, Category, InsurancePlan, Customer, SaleRecord, Currency, User, Supplier, Purchase, PharmacyInfo } from './types';
 
 export const DEFAULT_PHARMACY_INFO: PharmacyInfo = {
-  name: 'FARMASALUD S.R.L.',
-  commercialName: 'FARMACIA FARMASALUD BOLIVIA',
+  name: 'FARMACIA YIREH',
+  commercialName: 'FARMACIA YIREH',
   nit: '1020304050',
-  address: 'Av. 16 de Julio #1490, El Prado, La Paz',
-  phone: '2-2445566 / 71523456',
+  address: 'Av. Principal #100',
+  phone: '71523456',
   city: 'La Paz - Bolivia',
   authorizationNumber: '29040011007'
 };
 
-export const INSURANCE_PLANS: InsurancePlan[] = [
-  { id: 'PART', name: 'Particular (Sin Seguro)', coveragePercent: 0 },
-  { id: 'OSDE', name: 'OSDE 210', coveragePercent: 40 },
-  { id: 'SWISS', name: 'Swiss Medical', coveragePercent: 50 },
-  { id: 'PAMI', name: 'PAMI Jubilados', coveragePercent: 80 }
+export const DEFAULT_DISCOUNT_PLANS: InsurancePlan[] = [
+  { id: 'NONE', name: 'Sin Descuento (0%)', coveragePercent: 0 },
+  { id: 'CLI_FREQ', name: 'Cliente Frecuente (5%)', coveragePercent: 5 },
+  { id: 'AMAYOR', name: 'Adulto Mayor (10%)', coveragePercent: 10 },
+  { id: 'PROM', name: 'Promoción Especial (15%)', coveragePercent: 15 }
 ];
+
+export const INSURANCE_PLANS: InsurancePlan[] = DEFAULT_DISCOUNT_PLANS;
 
 export const SUPPORTED_CURRENCIES: Currency[] = [
   { code: 'BOB', symbol: 'Bs', name: 'Boliviano' },
@@ -29,21 +31,21 @@ export const SUPPORTED_CURRENCIES: Currency[] = [
 ];
 
 export const MOCK_CUSTOMERS: Customer[] = [
-  { id: 'C1', name: 'Carlos Condori', dni: '1234567 LP', insuranceId: 'OSDE', phone: '71523456', email: 'carlos.condori@email.com', history: ['S1'] },
-  { id: 'C2', name: 'Ana Choque', dni: '8765432 LP', insuranceId: 'PAMI', phone: '72011223', email: 'ana.choque@email.com', history: [] },
-  { id: 'C3', name: 'Luis Mamani', dni: '4567890 LP', insuranceId: 'PART', phone: '73544556', email: 'luis.mamani@email.com', history: [] },
-  { id: 'C4', name: 'Maria Quispe', dni: '3210987 LP', insuranceId: 'SWISS', phone: '74088990', email: 'maria.quispe@email.com', history: [] },
-  { id: 'C5', name: 'Jorge Flores', dni: '6543210 LP', insuranceId: 'PART', phone: '75566778', email: 'jorge.flores@email.com', history: [] },
-  { id: 'C6', name: 'Elena Huanca', dni: '9876543 LP', insuranceId: 'OSDE', phone: '76033445', email: 'elena.huanca@email.com', history: [] },
-  { id: 'C7', name: 'Roberto Ticona', dni: '1357924 LP', insuranceId: 'PAMI', phone: '77599001', email: 'roberto.ticona@email.com', history: [] },
-  { id: 'C8', name: 'Sandra Vargas', dni: '2468013 LP', insuranceId: 'SWISS', phone: '78011223', email: 'sandra.vargas@email.com', history: [] },
-  { id: 'C9', name: 'Felix Apaza', dni: '5791357 LP', insuranceId: 'PART', phone: '79544556', email: 'felix.apaza@email.com', history: [] },
-  { id: 'C10', name: 'Carmen Mendoza', dni: '8024680 LP', insuranceId: 'OSDE', phone: '61088990', email: 'carmen.mendoza@email.com', history: [] },
-  { id: 'C11', name: 'Victor Villca', dni: '1111111 LP', insuranceId: 'PART', phone: '62066778', email: 'victor.villca@email.com', history: [] },
-  { id: 'C12', name: 'Juana Ramos', dni: '2222222 LP', insuranceId: 'PAMI', phone: '63033445', email: 'juana.ramos@email.com', history: [] },
-  { id: 'C13', name: 'Angel Paco', dni: '3333333 LP', insuranceId: 'SWISS', phone: '64099001', email: 'angel.paco@email.com', history: [] },
-  { id: 'C14', name: 'Silvia Calle', dni: '4444444 LP', insuranceId: 'PART', phone: '65011223', email: 'silvia.calle@email.com', history: [] },
-  { id: 'C15', name: 'Javier Blanco', dni: '5555555 LP', insuranceId: 'OSDE', phone: '66044556', email: 'javier.blanco@email.com', history: [] }
+  { id: 'C1', name: 'Carlos Condori', dni: '1234567 LP', insuranceId: 'CLI_FREQ', phone: '71523456', email: 'carlos.condori@email.com', history: ['S1'] },
+  { id: 'C2', name: 'Ana Choque', dni: '8765432 LP', insuranceId: 'AMAYOR', phone: '72011223', email: 'ana.choque@email.com', history: [] },
+  { id: 'C3', name: 'Luis Mamani', dni: '4567890 LP', insuranceId: 'NONE', phone: '73544556', email: 'luis.mamani@email.com', history: [] },
+  { id: 'C4', name: 'Maria Quispe', dni: '3210987 LP', insuranceId: 'CLI_FREQ', phone: '74088990', email: 'maria.quispe@email.com', history: [] },
+  { id: 'C5', name: 'Jorge Flores', dni: '6543210 LP', insuranceId: 'NONE', phone: '75566778', email: 'jorge.flores@email.com', history: [] },
+  { id: 'C6', name: 'Elena Huanca', dni: '9876543 LP', insuranceId: 'AMAYOR', phone: '76033445', email: 'elena.huanca@email.com', history: [] },
+  { id: 'C7', name: 'Roberto Ticona', dni: '1357924 LP', insuranceId: 'CLI_FREQ', phone: '77599001', email: 'roberto.ticona@email.com', history: [] },
+  { id: 'C8', name: 'Sandra Vargas', dni: '2468013 LP', insuranceId: 'NONE', phone: '78011223', email: 'sandra.vargas@email.com', history: [] },
+  { id: 'C9', name: 'Felix Apaza', dni: '5791357 LP', insuranceId: 'CLI_FREQ', phone: '79544556', email: 'felix.apaza@email.com', history: [] },
+  { id: 'C10', name: 'Carmen Mendoza', dni: '8024680 LP', insuranceId: 'AMAYOR', phone: '61088990', email: 'carmen.mendoza@email.com', history: [] },
+  { id: 'C11', name: 'Victor Villca', dni: '1111111 LP', insuranceId: 'NONE', phone: '62066778', email: 'victor.villca@email.com', history: [] },
+  { id: 'C12', name: 'Juana Ramos', dni: '2222222 LP', insuranceId: 'AMAYOR', phone: '63033445', email: 'juana.ramos@email.com', history: [] },
+  { id: 'C13', name: 'Angel Paco', dni: '3333333 LP', insuranceId: 'CLI_FREQ', phone: '64099001', email: 'angel.paco@email.com', history: [] },
+  { id: 'C14', name: 'Silvia Calle', dni: '4444444 LP', insuranceId: 'NONE', phone: '65011223', email: 'silvia.calle@email.com', history: [] },
+  { id: 'C15', name: 'Javier Blanco', dni: '5555555 LP', insuranceId: 'AMAYOR', phone: '66044556', email: 'javier.blanco@email.com', history: [] }
 ];
 
 export const MOCK_MEDICATIONS: Medication[] = [
@@ -389,21 +391,21 @@ export const MOCK_SUPPLIERS: Supplier[] = [
 ];
 
 export const MOCK_SALES: SaleRecord[] = [
-  { id: 'S1', timestamp: new Date(Date.now() - 3600000 * 1).toISOString(), items: [{ medication: MOCK_MEDICATIONS[0], quantity: 2, isFractional: false, selectedBatch: 'T-101', subtotal: 90 }, { medication: MOCK_MEDICATIONS[1], quantity: 1, isFractional: false, selectedBatch: 'B-202', subtotal: 60 }], total: 150, customerName: 'Carlos Condori', customerId: 'C1', clientNit: '1234567 LP', documentType: 'FACTURA', insuranceName: 'OSDE', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'CASH' },
-  { id: 'S2', timestamp: new Date(Date.now() - 3600000 * 2).toISOString(), items: [{ medication: MOCK_MEDICATIONS[0], quantity: 1, isFractional: false, selectedBatch: 'T-101', subtotal: 45 }], total: 45, customerName: 'Ana Choque', customerId: 'C2', clientNit: '8765432 LP', documentType: 'FACTURA', insuranceName: 'PAMI', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'QR', qrVerified: true },
-  { id: 'S3', timestamp: new Date(Date.now() - 3600000 * 3).toISOString(), items: [{ medication: MOCK_MEDICATIONS[2], quantity: 1, isFractional: false, selectedBatch: 'I-303', subtotal: 80 }], total: 80, customerName: 'Luis Mamani', customerId: 'C3', clientNit: '4567890 LP', documentType: 'RECIBO', insuranceName: 'Particular', userId: 'U3', cashierName: 'Sonia Quispe', cashRegister: 'Caja 2', paymentMethod: 'CARD' },
-  { id: 'S4', timestamp: new Date(Date.now() - 3600000 * 4).toISOString(), items: [{ medication: MOCK_MEDICATIONS[4], quantity: 4, isFractional: false, selectedBatch: 'O-505', subtotal: 200 }], total: 200, customerName: 'Maria Quispe', customerId: 'C4', clientNit: '3210987 LP', documentType: 'FACTURA', insuranceName: 'Swiss Medical', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'CASH' },
-  { id: 'S5', timestamp: new Date(Date.now() - 3600000 * 5).toISOString(), items: [{ medication: MOCK_MEDICATIONS[6], quantity: 1, isFractional: false, selectedBatch: 'A-707', subtotal: 30 }], total: 30, customerName: 'Jorge Flores', customerId: 'C5', clientNit: '6543210 LP', documentType: 'RECIBO', insuranceName: 'Particular', userId: 'U3', cashierName: 'Sonia Quispe', cashRegister: 'Caja 2', paymentMethod: 'QR', qrVerified: true },
-  { id: 'S6', timestamp: new Date(Date.now() - 3600000 * 6).toISOString(), items: [{ medication: MOCK_MEDICATIONS[5], quantity: 3, isFractional: false, selectedBatch: 'D-606', subtotal: 120 }], total: 120, customerName: 'Elena Huanca', customerId: 'C6', clientNit: '9876543 LP', documentType: 'FACTURA', insuranceName: 'OSDE', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'CASH' },
-  { id: 'S7', timestamp: new Date(Date.now() - 3600000 * 7).toISOString(), items: [{ medication: MOCK_MEDICATIONS[9], quantity: 1, isFractional: false, selectedBatch: 'L-010', subtotal: 35 }, { medication: MOCK_MEDICATIONS[5], quantity: 10, isFractional: true, selectedBatch: 'D-606', subtotal: 20 }], total: 55, customerName: 'Roberto Ticona', customerId: 'C7', clientNit: '1357924 LP', documentType: 'RECIBO', insuranceName: 'PAMI', userId: 'U3', cashierName: 'Sonia Quispe', cashRegister: 'Caja 2', paymentMethod: 'CARD' },
-  { id: 'S8', timestamp: new Date(Date.now() - 3600000 * 8).toISOString(), items: [{ medication: MOCK_MEDICATIONS[3], quantity: 2, isFractional: false, selectedBatch: 'V-404', subtotal: 70 }, { medication: MOCK_MEDICATIONS[0], quantity: 10, isFractional: true, selectedBatch: 'T-101', subtotal: 25 }], total: 95, customerName: 'Sandra Vargas', customerId: 'C8', clientNit: '2468013 LP', documentType: 'FACTURA', insuranceName: 'Swiss Medical', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'QR', qrVerified: true },
-  { id: 'S9', timestamp: new Date(Date.now() - 3600000 * 9).toISOString(), items: [{ medication: MOCK_MEDICATIONS[5], quantity: 1, isFractional: false, selectedBatch: 'D-606', subtotal: 40 }], total: 40, customerName: 'Felix Apaza', customerId: 'C9', clientNit: '5791357 LP', documentType: 'FACTURA', insuranceName: 'Particular', userId: 'U3', cashierName: 'Sonia Quispe', cashRegister: 'Caja 2', paymentMethod: 'CASH' },
-  { id: 'S10', timestamp: new Date(Date.now() - 3600000 * 10).toISOString(), items: [{ medication: MOCK_MEDICATIONS[1], quantity: 3, isFractional: false, selectedBatch: 'B-202', subtotal: 180 }], total: 180, customerName: 'Carmen Mendoza', customerId: 'C10', clientNit: '8024680 LP', documentType: 'FACTURA', insuranceName: 'OSDE', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'QR', qrVerified: true },
-  { id: 'S11', timestamp: new Date(Date.now() - 3600000 * 11).toISOString(), items: [{ medication: MOCK_MEDICATIONS[0], quantity: 10, isFractional: true, selectedBatch: 'T-101', subtotal: 25 }], total: 25, customerName: 'Victor Villca', customerId: 'C11', clientNit: '1111111 LP', documentType: 'RECIBO', insuranceName: 'Particular', userId: 'U3', cashierName: 'Sonia Quispe', cashRegister: 'Caja 2', paymentMethod: 'CASH' },
-  { id: 'S12', timestamp: new Date(Date.now() - 3600000 * 12).toISOString(), items: [{ medication: MOCK_MEDICATIONS[1], quantity: 1, isFractional: false, selectedBatch: 'B-202', subtotal: 60 }], total: 60, customerName: 'Juana Ramos', customerId: 'C12', clientNit: '2222222 LP', documentType: 'FACTURA', insuranceName: 'PAMI', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'CARD' },
-  { id: 'S13', timestamp: new Date(Date.now() - 3600000 * 13).toISOString(), items: [{ medication: MOCK_MEDICATIONS[7], quantity: 1, isFractional: false, selectedBatch: 'CB-808', subtotal: 75 }, { medication: MOCK_MEDICATIONS[9], quantity: 1, isFractional: false, selectedBatch: 'L-010', subtotal: 35 }], total: 110, customerName: 'Angel Paco', customerId: 'C13', clientNit: '3333333 LP', documentType: 'FACTURA', insuranceName: 'Swiss Medical', userId: 'U3', cashierName: 'Sonia Quispe', cashRegister: 'Caja 2', paymentMethod: 'QR', qrVerified: true },
-  { id: 'S14', timestamp: new Date(Date.now() - 3600000 * 14).toISOString(), items: [{ medication: MOCK_MEDICATIONS[9], quantity: 1, isFractional: false, selectedBatch: 'L-010', subtotal: 35 }], total: 35, customerName: 'Silvia Calle', customerId: 'C14', clientNit: '4444444 LP', documentType: 'RECIBO', insuranceName: 'Particular', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'CASH' },
-  { id: 'S15', timestamp: new Date(Date.now() - 3600000 * 15).toISOString(), items: [{ medication: MOCK_MEDICATIONS[14], quantity: 1, isFractional: false, selectedBatch: 'DX-515', subtotal: 120 }, { medication: MOCK_MEDICATIONS[4], quantity: 10, isFractional: true, selectedBatch: 'O-505', subtotal: 20 }], total: 140, customerName: 'Javier Blanco', customerId: 'C15', clientNit: '5555555 LP', documentType: 'FACTURA', insuranceName: 'OSDE', userId: 'U3', cashierName: 'Sonia Quispe', cashRegister: 'Caja 2', paymentMethod: 'QR', qrVerified: true }
+  { id: 'S1', timestamp: new Date(Date.now() - 3600000 * 1).toISOString(), items: [{ medication: MOCK_MEDICATIONS[0], quantity: 2, isFractional: false, selectedBatch: 'T-101', subtotal: 90 }, { medication: MOCK_MEDICATIONS[1], quantity: 1, isFractional: false, selectedBatch: 'B-202', subtotal: 60 }], total: 150, customerName: 'Carlos Condori', customerId: 'C1', clientNit: '1234567 LP', documentType: 'FACTURA', insuranceName: 'Cliente Frecuente (5%)', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'CASH' },
+  { id: 'S2', timestamp: new Date(Date.now() - 3600000 * 2).toISOString(), items: [{ medication: MOCK_MEDICATIONS[0], quantity: 1, isFractional: false, selectedBatch: 'T-101', subtotal: 45 }], total: 45, customerName: 'Ana Choque', customerId: 'C2', clientNit: '8765432 LP', documentType: 'FACTURA', insuranceName: 'Adulto Mayor (10%)', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'QR', qrVerified: true },
+  { id: 'S3', timestamp: new Date(Date.now() - 3600000 * 3).toISOString(), items: [{ medication: MOCK_MEDICATIONS[2], quantity: 1, isFractional: false, selectedBatch: 'I-303', subtotal: 80 }], total: 80, customerName: 'Luis Mamani', customerId: 'C3', clientNit: '4567890 LP', documentType: 'RECIBO', insuranceName: 'Sin Descuento (0%)', userId: 'U3', cashierName: 'Sonia Quispe', cashRegister: 'Caja 2', paymentMethod: 'CARD' },
+  { id: 'S4', timestamp: new Date(Date.now() - 3600000 * 4).toISOString(), items: [{ medication: MOCK_MEDICATIONS[4], quantity: 4, isFractional: false, selectedBatch: 'O-505', subtotal: 200 }], total: 200, customerName: 'Maria Quispe', customerId: 'C4', clientNit: '3210987 LP', documentType: 'FACTURA', insuranceName: 'Cliente Frecuente (5%)', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'CASH' },
+  { id: 'S5', timestamp: new Date(Date.now() - 3600000 * 5).toISOString(), items: [{ medication: MOCK_MEDICATIONS[6], quantity: 1, isFractional: false, selectedBatch: 'A-707', subtotal: 30 }], total: 30, customerName: 'Jorge Flores', customerId: 'C5', clientNit: '6543210 LP', documentType: 'RECIBO', insuranceName: 'Sin Descuento (0%)', userId: 'U3', cashierName: 'Sonia Quispe', cashRegister: 'Caja 2', paymentMethod: 'QR', qrVerified: true },
+  { id: 'S6', timestamp: new Date(Date.now() - 3600000 * 6).toISOString(), items: [{ medication: MOCK_MEDICATIONS[5], quantity: 3, isFractional: false, selectedBatch: 'D-606', subtotal: 120 }], total: 120, customerName: 'Elena Huanca', customerId: 'C6', clientNit: '9876543 LP', documentType: 'FACTURA', insuranceName: 'Adulto Mayor (10%)', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'CASH' },
+  { id: 'S7', timestamp: new Date(Date.now() - 3600000 * 7).toISOString(), items: [{ medication: MOCK_MEDICATIONS[9], quantity: 1, isFractional: false, selectedBatch: 'L-010', subtotal: 35 }, { medication: MOCK_MEDICATIONS[5], quantity: 10, isFractional: true, selectedBatch: 'D-606', subtotal: 20 }], total: 55, customerName: 'Roberto Ticona', customerId: 'C7', clientNit: '1357924 LP', documentType: 'RECIBO', insuranceName: 'Cliente Frecuente (5%)', userId: 'U3', cashierName: 'Sonia Quispe', cashRegister: 'Caja 2', paymentMethod: 'CARD' },
+  { id: 'S8', timestamp: new Date(Date.now() - 3600000 * 8).toISOString(), items: [{ medication: MOCK_MEDICATIONS[3], quantity: 2, isFractional: false, selectedBatch: 'V-404', subtotal: 70 }, { medication: MOCK_MEDICATIONS[0], quantity: 10, isFractional: true, selectedBatch: 'T-101', subtotal: 25 }], total: 95, customerName: 'Sandra Vargas', customerId: 'C8', clientNit: '2468013 LP', documentType: 'FACTURA', insuranceName: 'Sin Descuento (0%)', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'QR', qrVerified: true },
+  { id: 'S9', timestamp: new Date(Date.now() - 3600000 * 9).toISOString(), items: [{ medication: MOCK_MEDICATIONS[5], quantity: 1, isFractional: false, selectedBatch: 'D-606', subtotal: 40 }], total: 40, customerName: 'Felix Apaza', customerId: 'C9', clientNit: '5791357 LP', documentType: 'FACTURA', insuranceName: 'Sin Descuento (0%)', userId: 'U3', cashierName: 'Sonia Quispe', cashRegister: 'Caja 2', paymentMethod: 'CASH' },
+  { id: 'S10', timestamp: new Date(Date.now() - 3600000 * 10).toISOString(), items: [{ medication: MOCK_MEDICATIONS[1], quantity: 3, isFractional: false, selectedBatch: 'B-202', subtotal: 180 }], total: 180, customerName: 'Carmen Mendoza', customerId: 'C10', clientNit: '8024680 LP', documentType: 'FACTURA', insuranceName: 'Adulto Mayor (10%)', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'QR', qrVerified: true },
+  { id: 'S11', timestamp: new Date(Date.now() - 3600000 * 11).toISOString(), items: [{ medication: MOCK_MEDICATIONS[0], quantity: 10, isFractional: true, selectedBatch: 'T-101', subtotal: 25 }], total: 25, customerName: 'Victor Villca', customerId: 'C11', clientNit: '1111111 LP', documentType: 'RECIBO', insuranceName: 'Sin Descuento (0%)', userId: 'U3', cashierName: 'Sonia Quispe', cashRegister: 'Caja 2', paymentMethod: 'CASH' },
+  { id: 'S12', timestamp: new Date(Date.now() - 3600000 * 12).toISOString(), items: [{ medication: MOCK_MEDICATIONS[1], quantity: 1, isFractional: false, selectedBatch: 'B-202', subtotal: 60 }], total: 60, customerName: 'Juana Ramos', customerId: 'C12', clientNit: '2222222 LP', documentType: 'FACTURA', insuranceName: 'Adulto Mayor (10%)', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'CARD' },
+  { id: 'S13', timestamp: new Date(Date.now() - 3600000 * 13).toISOString(), items: [{ medication: MOCK_MEDICATIONS[7], quantity: 1, isFractional: false, selectedBatch: 'CB-808', subtotal: 75 }, { medication: MOCK_MEDICATIONS[9], quantity: 1, isFractional: false, selectedBatch: 'L-010', subtotal: 35 }], total: 110, customerName: 'Angel Paco', customerId: 'C13', clientNit: '3333333 LP', documentType: 'FACTURA', insuranceName: 'Promoción Especial (15%)', userId: 'U3', cashierName: 'Sonia Quispe', cashRegister: 'Caja 2', paymentMethod: 'QR', qrVerified: true },
+  { id: 'S14', timestamp: new Date(Date.now() - 3600000 * 14).toISOString(), items: [{ medication: MOCK_MEDICATIONS[9], quantity: 1, isFractional: false, selectedBatch: 'L-010', subtotal: 35 }], total: 35, customerName: 'Silvia Calle', customerId: 'C14', clientNit: '4444444 LP', documentType: 'RECIBO', insuranceName: 'Sin Descuento (0%)', userId: 'U2', cashierName: 'Ricardo Mamani', cashRegister: 'Caja 1', paymentMethod: 'CASH' },
+  { id: 'S15', timestamp: new Date(Date.now() - 3600000 * 15).toISOString(), items: [{ medication: MOCK_MEDICATIONS[14], quantity: 1, isFractional: false, selectedBatch: 'DX-515', subtotal: 120 }, { medication: MOCK_MEDICATIONS[4], quantity: 10, isFractional: true, selectedBatch: 'O-505', subtotal: 20 }], total: 140, customerName: 'Javier Blanco', customerId: 'C15', clientNit: '5555555 LP', documentType: 'FACTURA', insuranceName: 'Adulto Mayor (10%)', userId: 'U3', cashierName: 'Sonia Quispe', cashRegister: 'Caja 2', paymentMethod: 'QR', qrVerified: true }
 ];
 
 export const MOCK_PURCHASES: Purchase[] = [
