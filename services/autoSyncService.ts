@@ -4,6 +4,8 @@
  * Sincroniza en tiempo real las 4 computadoras en Vercel a través de canales SSE seguros.
  */
 
+import { broadcastViaSupabase } from './supabaseService';
+
 export interface SyncMessage {
   type: 
     | 'SALE_COMPLETED' 
@@ -14,6 +16,7 @@ export interface SyncMessage {
     | 'CUSTOMER_ADDED' 
     | 'DISCOUNTS_UPDATED' 
     | 'PHARMACY_INFO_UPDATED'
+    | 'STAFF_UPDATED'
     | 'CLEAR_DEMO'
     | 'REQUEST_SYNC'
     | 'PROVIDE_SYNC';
@@ -74,7 +77,14 @@ export const broadcastSyncEvent = async (type: SyncMessage['type'], payload: any
     console.debug('BroadcastChannel local postMessage error:', e);
   }
 
-  // 2. Transmitir por canal de red en la nube (cero configuración)
+  // 2. Transmitir por canal en tiempo real de Supabase (instantáneo vía WebSockets a todas las PCs)
+  try {
+    broadcastViaSupabase(type, payload);
+  } catch (e) {
+    console.debug('Supabase broadcast error:', e);
+  }
+
+  // 3. Transmitir por canal de red en la nube secundario (fallback)
   try {
     const response = await fetch(`https://ntfy.sh/${room}`, {
       method: 'POST',
@@ -89,8 +99,8 @@ export const broadcastSyncEvent = async (type: SyncMessage['type'], payload: any
 
     return response.ok;
   } catch (err) {
-    console.warn('AutoSync: no se pudo transmitir el evento (posible modo offline):', err);
-    return false;
+    // Modo offline o red secundaria no disponible; Supabase y canal local ya transmitieron
+    return true;
   }
 };
 

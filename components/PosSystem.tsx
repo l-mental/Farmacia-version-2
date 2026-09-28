@@ -401,16 +401,34 @@ const PosSystem: React.FC<PosSystemProps> = ({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4 md:gap-6 pb-24 lg:pb-6">
-          {displayedMeds.map(med => {
-            const firstBatch = med.batches[0];
-            const expTime = firstBatch?.expiryDate ? new Date(firstBatch.expiryDate).getTime() : null;
-            const now = Date.now();
-            const isExpired = expTime ? expTime < now : false;
-            const isNearExpiry = expTime && !isExpired ? (expTime - now < 90 * 86400000) : false;
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 pb-24 lg:pb-6">
+          {displayedMeds.length === 0 ? (
+            <div className="h-64 flex flex-col items-center justify-center text-center p-8 bg-white rounded-3xl border border-dashed border-slate-200">
+              <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-3">
+                <Search className="w-7 h-7" />
+              </div>
+              <h3 className="text-base font-black text-slate-800 mb-1">Catálogo de Venta Vacío</h3>
+              <p className="text-xs text-slate-400 max-w-sm mb-4">
+                No hay medicamentos registrados o coincidentes. Registra nuevos productos (como Mentisan) en la sección de Inventario para comenzar a facturar.
+              </p>
+              <a
+                href="/inventory"
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm"
+              >
+                Ir a Inventario
+              </a>
+            </div>
+          ) : (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4 md:gap-6">
+              {displayedMeds.map(med => {
+                const firstBatch = med.batches[0];
+                const expTime = firstBatch?.expiryDate ? new Date(firstBatch.expiryDate).getTime() : null;
+                const now = Date.now();
+                const isExpired = expTime ? expTime < now : false;
+                const isNearExpiry = expTime && !isExpired ? (expTime - now < 90 * 86400000) : false;
 
-            return (
-              <div key={med.id} className="group bg-white rounded-2xl p-4 md:p-5 border border-slate-200/80 shadow-sm hover:shadow-md hover:border-emerald-500/30 transition-all duration-200 flex flex-col h-fit">
+                return (
+                  <div key={med.id} className="group bg-white rounded-2xl p-4 md:p-5 border border-slate-200/80 shadow-sm hover:shadow-md hover:border-emerald-500/30 transition-all duration-200 flex flex-col h-fit">
                 <div className="mb-3">
                   <div className="flex items-center justify-between gap-1.5 mb-1.5 flex-wrap">
                     <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-[9px] font-black text-slate-600 uppercase tracking-wider">{med.laboratory || 'GENÉRICO'}</span>
@@ -487,9 +505,11 @@ const PosSystem: React.FC<PosSystemProps> = ({
               </div>
             );
           })}
+            </div>
+          )}
 
           {filteredMeds.length > visibleLimit && (
-            <div className="col-span-full py-4 text-center">
+            <div className="py-4 text-center">
               <button
                 type="button"
                 onClick={() => setVisibleLimit(prev => prev + 48)}

@@ -17,7 +17,10 @@ import MobileNav from '@/components/layout/MobileNav';
 import SettingsModal from '@/components/modals/SettingsModal';
 import NewPatientModal from '@/components/modals/NewPatientModal';
 import SystemNotificationBanner from '@/components/SystemNotificationBanner';
+import { SupabaseSetupModal } from '@/components/modals/SupabaseSetupModal';
+import { getStoredSupabaseConfig } from '@/services/supabaseService';
 import { canUserAccessSection } from '@/types';
+import { Database } from 'lucide-react';
 
 type TabType = 'DASHBOARD' | 'POS' | 'INVENTORY' | 'REPORTS' | 'CUSTOMERS' | 'STAFF' | 'SETTINGS' | 'SUPPLIERS' | 'PURCHASES';
 
@@ -39,7 +42,9 @@ const AppContent: React.FC = () => {
     discountPlans,
     setPharmacyInfo,
     setMedications,
+    setCustomers,
     setStaff,
+    setSales,
     setSuppliers,
     setPurchases,
     setCurrency,
@@ -64,6 +69,8 @@ const AppContent: React.FC = () => {
     handleAddDiscountPlan,
     handleDeleteDiscountPlan,
     isCloudConnected,
+    isCloudTableReady,
+    checkSupabaseTableReady,
     cloudLastSync,
     isSyncingWithCloud,
     handleConnectCloud,
@@ -85,6 +92,7 @@ const AppContent: React.FC = () => {
   } = usePeriodicAlerts(medications);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSupabaseSetupOpen, setIsSupabaseSetupOpen] = useState(false);
   const [isNewPatientModalOpen, setIsNewPatientModalOpen] = useState(false);
   const location = useLocation();
 
@@ -98,7 +106,7 @@ const AppContent: React.FC = () => {
   }, [darkMode]);
 
   if (!currentUser) {
-    return <Login onLogin={handleLogin} />;
+    return <Login onLogin={handleLogin} staff={staff} />;
   }
 
   const activeTab = (location.pathname.split('/')[1]?.toUpperCase() || 'DASHBOARD') as TabType;
@@ -134,6 +142,22 @@ const AppContent: React.FC = () => {
       />
 
       <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden pb-24 md:pb-0">
+        {isCloudConnected && isCloudTableReady === false && (
+          <div className="bg-amber-400 text-slate-950 px-4 py-2 text-xs font-black flex items-center justify-between shadow-md z-30 shrink-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <Database className="w-4 h-4 text-slate-950 shrink-0" />
+              <span className="truncate">Base de datos Supabase conectada. Falta crear la tabla farma_sync para persistencia permanente.</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsSupabaseSetupOpen(true)}
+              className="ml-3 px-3 py-1 bg-slate-900 hover:bg-black text-white rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0"
+            >
+              Copiar SQL (1 Clic)
+            </button>
+          </div>
+        )}
+
         <AppHeader 
           activeTab={activeTab}
           isOnline={isOnline}
@@ -307,6 +331,16 @@ const AppContent: React.FC = () => {
         isOpen={isNewPatientModalOpen}
         onClose={() => setIsNewPatientModalOpen(false)}
         onAdd={handleAddPatient}
+      />
+
+      <SupabaseSetupModal 
+        isOpen={isSupabaseSetupOpen}
+        onClose={() => setIsSupabaseSetupOpen(false)}
+        onVerify={async () => {
+          const res = await checkSupabaseTableReady();
+          return res.ready;
+        }}
+        supabaseUrl={getStoredSupabaseConfig().url}
       />
     </div>
   );

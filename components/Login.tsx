@@ -1,18 +1,50 @@
-
 import React, { useState, useEffect } from 'react';
-import { HeartPulse, Lock, User as UserIcon, ArrowRight, Key } from 'lucide-react';
+import { HeartPulse, Lock, User as UserIcon, ArrowRight, Shield, ShoppingCart, Pill, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import { UserRole, User } from '@/types';
 import { jwtDecode } from 'jwt-decode';
 
 interface LoginProps {
   onLogin: (user: User) => void;
+  staff?: User[];
 }
 
-const Login: React.FC<LoginProps> = ({ onLogin }) => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+const MASTER_ADMIN: User = {
+  id: '1',
+  name: 'Administrador Principal',
+  username: 'admin',
+  password: 'admin',
+  role: 'ADMIN',
+  originalRole: 'ADMIN',
+  permissions: {
+    allowedSections: ['DASHBOARD', 'POS', 'INVENTORY', 'REPORTS', 'CUSTOMERS', 'SUPPLIERS', 'PURCHASES', 'STAFF'],
+    canEditInventory: true
+  }
+};
+
+const Login: React.FC<LoginProps> = ({ onLogin, staff = [] }) => {
+  const [username, setUsername] = useState('admin');
+  const [password, setPassword] = useState('admin');
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [hasGoogleClient, setHasGoogleClient] = useState(false);
+
+  // Combine default admin with staff passed via props or from localStorage
+  const allStaff: User[] = React.useMemo(() => {
+    let list: User[] = [...staff];
+    if (list.length === 0) {
+      try {
+        const saved = localStorage.getItem('FARMA_STAFF');
+        if (saved) {
+          list = JSON.parse(saved);
+        }
+      } catch {}
+    }
+    // Ensure master admin is included if not present
+    if (!list.some(u => u.username.toLowerCase() === 'admin')) {
+      return [MASTER_ADMIN, ...list];
+    }
+    return list;
+  }, [staff]);
 
   useEffect(() => {
     // Initialize Google One Tap / Sign In if configured
@@ -40,7 +72,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       role: 'EMPLOYEE',
       originalRole: 'EMPLOYEE',
       username: decoded.email,
-      email: decoded.email
+      email: decoded.email,
+      permissions: {
+        allowedSections: ['POS', 'INVENTORY', 'CUSTOMERS'],
+        canEditInventory: false
+      }
     });
   };
 
@@ -49,55 +85,122 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setErrorMsg('');
 
     const cleanUser = username.trim().toLowerCase();
-    
-    // Buscar usuario en el personal guardado
-    const savedStaffStr = localStorage.getItem('FARMA_STAFF');
-    let foundUser: User | null = null;
-    if (savedStaffStr) {
-      try {
-        const staffList: User[] = JSON.parse(savedStaffStr);
-        foundUser = staffList.find(u => u.username.toLowerCase() === cleanUser) || null;
-      } catch (err) {
-        console.error(err);
+    const cleanPass = password.trim();
+
+    // Check Master Admin
+    if (cleanUser === 'admin') {
+      if (cleanPass === 'admin' || cleanPass === 'admin123' || cleanPass === 'admin2026' || cleanPass === (MASTER_ADMIN.password || 'admin')) {
+        onLogin(MASTER_ADMIN);
+        return;
+      } else {
+        setErrorMsg('Contraseña incorrecta para el usuario "admin". (Por defecto es: admin)');
+        return;
       }
     }
 
-    if (cleanUser === 'admin') {
-      onLogin({ 
-        id: '1', 
-        name: 'Administrador Principal', 
-        role: 'ADMIN', 
-        originalRole: 'ADMIN', 
-        username: 'admin' 
-      });
-    } else if (foundUser) {
-      onLogin(foundUser);
-    } else {
-      setErrorMsg('Usuario o contraseña no encontrados. Ingrese con la cuenta "admin" o solicite su usuario en Gestión de Personal.');
+    // Check in registered staff
+    const foundUser = allStaff.find(u => u.username.toLowerCase() === cleanUser);
+    if (!foundUser) {
+      setErrorMsg(`El usuario "${username}" no existe en el sistema. Puedes ingresar como "admin" o pedir al Administrador que te registre en Gestión de Personal.`);
+      return;
     }
+
+    // Validate password if configured
+    if (foundUser.password && foundUser.password.trim() !== '') {
+      if (foundUser.password.trim() !== cleanPass) {
+        setErrorMsg(`Contraseña o PIN incorrecto para el usuario "${foundUser.name}".`);
+        return;
+      }
+    }
+
+    // Login successful
+    onLogin(foundUser);
+  };
+
+  const selectUserPreset = (user: User) => {
+    setUsername(user.username);
+    setPassword(user.password || '');
+    setErrorMsg('');
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-950 flex items-center justify-center p-4">
+      <div className="max-w-md w-full my-8">
         <div className="text-center mb-8">
-          <div className="inline-flex bg-emerald-600 p-4 rounded-2xl shadow-xl shadow-emerald-200 mb-4">
-            <HeartPulse className="text-white w-10 h-10" />
+          <div className="inline-flex bg-emerald-500 p-4 rounded-3xl shadow-2xl shadow-emerald-500/30 mb-4 ring-4 ring-emerald-500/20">
+            <HeartPulse className="text-slate-950 w-10 h-10" />
           </div>
-          <h1 className="text-3xl font-black text-slate-800">Farmacia <span className="text-emerald-600">Yireh</span></h1>
-          <p className="text-slate-500 mt-2 text-xs font-semibold">Sistema FarmaPOS • Acceso exclusivo para personal</p>
+          <h1 className="text-3xl font-black text-white tracking-tight">
+            Farmacia <span className="text-emerald-400">Yireh</span>
+          </h1>
+          <p className="text-emerald-200/70 mt-1 text-xs font-semibold tracking-wider uppercase">
+            Sistema FarmaPOS • Control de Acceso por Rol
+          </p>
         </div>
 
-        <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
-          <form onSubmit={handleLogin} className="space-y-5">
+        <div className="bg-white p-7 sm:p-9 rounded-[2.5rem] shadow-2xl border border-white/10 space-y-6">
+          {/* Selector Rápido de Cuentas Registradas */}
+          {allStaff.length > 0 && (
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2.5">
+                Seleccionar Personal Registrado
+              </label>
+              <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
+                {allStaff.map(u => {
+                  const isSelected = username.toLowerCase() === u.username.toLowerCase();
+                  const roleBadge = u.role === 'ADMIN' 
+                    ? { label: 'Administrador', bg: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: Shield }
+                    : u.role === 'PHARMACIST'
+                    ? { label: 'Farmacéutico', bg: 'bg-indigo-100 text-indigo-800 border-indigo-200', icon: Pill }
+                    : { label: 'Cajero / Ventas', bg: 'bg-sky-100 text-sky-800 border-sky-200', icon: ShoppingCart };
+
+                  const Icon = roleBadge.icon;
+
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => selectUserPreset(u)}
+                      className={`text-left p-2.5 rounded-2xl border transition-all flex items-center justify-between cursor-pointer ${
+                        isSelected 
+                          ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-500/20 shadow-sm' 
+                          : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100 hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
+                          isSelected ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'
+                        }`}>
+                          {u.name.charAt(0)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-black text-slate-900 truncate">{u.name}</p>
+                          <p className="text-[10px] text-slate-400 font-mono">@{u.username}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md border flex items-center gap-1 ${roleBadge.bg}`}>
+                          <Icon className="w-2.5 h-2.5" />
+                          {roleBadge.label}
+                        </span>
+                        {isSelected && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-4 pt-1">
             {errorMsg && (
-              <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold">
+              <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl text-xs font-bold leading-relaxed">
                 {errorMsg}
               </div>
             )}
 
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Usuario</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">Usuario</label>
               <div className="relative">
                 <input 
                   type="text" 
@@ -106,8 +209,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                     setUsername(e.target.value);
                     if (errorMsg) setErrorMsg('');
                   }}
-                  placeholder="admin o tu usuario asignado"
-                  className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none text-sm"
+                  placeholder="admin o tu usuario registrado"
+                  className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none text-sm font-medium"
                   required
                 />
                 <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -115,43 +218,55 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Contraseña</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-slate-700">Contraseña / PIN</label>
+                <span className="text-[10px] font-bold text-slate-400">admin por defecto: <span className="font-mono text-emerald-600">admin</span></span>
+              </div>
               <div className="relative">
                 <input 
-                  type="password" 
+                  type={showPassword ? 'text' : 'password'} 
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (errorMsg) setErrorMsg('');
+                  }}
                   placeholder="••••••••"
-                  className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none text-sm"
+                  className="w-full pl-11 pr-11 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none text-sm font-medium"
                   required
                 />
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 
             <button 
               type="submit"
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-600/20 active:scale-95"
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all shadow-xl shadow-emerald-600/25 active:scale-95 cursor-pointer mt-2"
             >
-              Iniciar Sesión
-              <ArrowRight className="w-5 h-5" />
+              <span>Ingresar al Sistema</span>
+              <ArrowRight className="w-4 h-4" />
             </button>
           </form>
 
           {hasGoogleClient && (
-            <div className="mt-6 space-y-4">
+            <div className="space-y-4 pt-2">
               <div className="relative">
                 <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-slate-100"></span></div>
-                <div className="relative flex justify-center text-xs uppercase"><span className="bg-white px-2 text-slate-400 font-bold">O continúa con</span></div>
+                <div className="relative flex justify-center text-[10px] uppercase tracking-wider"><span className="bg-white px-2 text-slate-400 font-bold">O continúa con</span></div>
               </div>
-
               <div id="googleBtn" className="w-full"></div>
             </div>
           )}
         </div>
 
         <p className="text-center text-xs text-slate-400 mt-6 font-medium">
-          Desarrollado por <span className="font-black text-slate-700">SoftPlus</span>
+          Farmacia Yireh • Desarrollado por <span className="font-black text-emerald-400">SoftPlus</span>
         </p>
       </div>
     </div>

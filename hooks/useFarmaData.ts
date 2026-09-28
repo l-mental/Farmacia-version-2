@@ -11,6 +11,7 @@ import {
   pushCollectionToSupabase, 
   pullAllFromSupabase, 
   subscribeToRealtimeChanges,
+  checkSupabaseTableReady,
   SUPABASE_SETUP_SQL 
 } from '@/services/supabaseService';
 import { 
@@ -20,6 +21,21 @@ import {
   setSyncRoom,
   getClientInstanceId 
 } from '@/services/autoSyncService';
+
+const DEFAULT_INITIAL_STAFF: User[] = [
+  {
+    id: '1',
+    name: 'Administrador Principal',
+    username: 'admin',
+    password: 'admin',
+    role: 'ADMIN',
+    originalRole: 'ADMIN',
+    permissions: {
+      allowedSections: ['DASHBOARD', 'POS', 'INVENTORY', 'REPORTS', 'CUSTOMERS', 'SUPPLIERS', 'PURCHASES', 'STAFF'],
+      canEditInventory: true
+    }
+  }
+];
 
 export const useFarmaData = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -61,7 +77,8 @@ export const useFarmaData = () => {
         console.error(e);
       }
     }
-    return sortAlphabetical(MOCK_MEDICATIONS);
+    // Si el usuario ya limpió o es primera vez en producción, inicia limpio
+    return [];
   });
 
   const [customers, setCustomers] = useState<Customer[]>(() => {
@@ -73,19 +90,20 @@ export const useFarmaData = () => {
         console.error(e);
       }
     }
-    return MOCK_CUSTOMERS;
+    return [];
   });
 
   const [staff, setStaff] = useState<User[]>(() => {
     const saved = localStorage.getItem('FARMA_STAFF');
     if (saved !== null) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {
         console.error(e);
       }
     }
-    return MOCK_STAFF;
+    return DEFAULT_INITIAL_STAFF;
   });
 
   const [sales, setSales] = useState<SaleRecord[]>(() => {
@@ -97,7 +115,7 @@ export const useFarmaData = () => {
         console.error(e);
       }
     }
-    return MOCK_SALES;
+    return [];
   });
 
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
@@ -109,7 +127,7 @@ export const useFarmaData = () => {
         console.error(e);
       }
     }
-    return MOCK_SUPPLIERS;
+    return [];
   });
 
   const [purchases, setPurchases] = useState<Purchase[]>(() => {
@@ -121,7 +139,7 @@ export const useFarmaData = () => {
         console.error(e);
       }
     }
-    return MOCK_PURCHASES;
+    return [];
   });
 
   const [currency, setCurrency] = useState<Currency>(() => {
@@ -322,11 +340,19 @@ export const useFarmaData = () => {
     };
   }, [medications, customers, sales, purchases, suppliers, pharmacyInfo, discountPlans]);
 
+  const [isCloudTableReady, setIsCloudTableReady] = useState<boolean | null>(null);
+
   // Initial Cloud Load and Realtime Subscription
   useEffect(() => {
     const { url, anonKey } = getStoredSupabaseConfig();
     if (isValidSupabaseConfig(url, anonKey)) {
       setIsSyncingWithCloud(true);
+
+      // Verificar si la tabla farma_sync está lista
+      checkSupabaseTableReady().then(chk => {
+        setIsCloudTableReady(chk.ready);
+      });
+
       pullAllFromSupabase().then(res => {
         if (res.success && res.data && Object.keys(res.data).length > 0) {
           isApplyingRemoteRef.current = true;
@@ -345,6 +371,9 @@ export const useFarmaData = () => {
           if (res.data.purchases && Array.isArray(res.data.purchases)) {
             setPurchases(res.data.purchases);
           }
+          if (res.data.staff && Array.isArray(res.data.staff)) {
+            setStaff(res.data.staff);
+          }
           if (res.data.pharmacyInfo) {
             setPharmacyInfo(res.data.pharmacyInfo);
           }
@@ -352,6 +381,7 @@ export const useFarmaData = () => {
             setDiscountPlans(res.data.discountPlans);
           }
           setCloudLastSync(new Date().toLocaleTimeString('es-ES'));
+          setIsCloudTableReady(true);
           setTimeout(() => {
             isApplyingRemoteRef.current = false;
             isInitialLoadedRef.current = true;
@@ -366,28 +396,74 @@ export const useFarmaData = () => {
         setIsSyncingWithCloud(false);
       });
 
-      const unsub = subscribeToRealtimeChanges((collectionId, data) => {
-        isApplyingRemoteRef.current = true;
-        if (collectionId === 'medications' && Array.isArray(data)) {
-          setMedications(sortAlphabetical(data));
-        } else if (collectionId === 'customers' && Array.isArray(data)) {
-          setCustomers(data);
-        } else if (collectionId === 'sales' && Array.isArray(data)) {
-          setSales(data);
-        } else if (collectionId === 'purchases' && Array.isArray(data)) {
-          setPurchases(data);
-        } else if (collectionId === 'suppliers' && Array.isArray(data)) {
-          setSuppliers(data);
-        } else if (collectionId === 'pharmacyInfo') {
-          setPharmacyInfo(data);
-        } else if (collectionId === 'discountPlans' && Array.isArray(data)) {
-          setDiscountPlans(data);
+      const unsub = subscribeToRealtimeChanges(
+        (collectionId, data) => {
+          isApplyingRemoteRef.current = true;
+          if (collectionId === 'medications' && Array.isArray(data)) {
+            setMedications(sortAlphabetical(data));
+          } else if (collectionId === 'customers' && Array.isArray(data)) {
+            setCustomers(data);
+          } else if (collectionId === 'sales' && Array.isArray(data)) {
+            setSales(data);
+          } else if (collectionId === 'purchases' && Array.isArray(data)) {
+            setPurchases(data);
+          } else if (collectionId === 'suppliers' && Array.isArray(data)) {
+            setSuppliers(data);
+          } else if (collectionId === 'staff' && Array.isArray(data)) {
+            setStaff(data);
+          } else if (collectionId === 'pharmacyInfo') {
+            setPharmacyInfo(data);
+          } else if (collectionId === 'discountPlans' && Array.isArray(data)) {
+            setDiscountPlans(data);
+          }
+          setCloudLastSync(new Date().toLocaleTimeString('es-ES'));
+          setTimeout(() => {
+            isApplyingRemoteRef.current = false;
+          }, 350);
+        },
+        (broadcastType, broadcastPayload) => {
+          // Recepción instantánea vía WebSocket de Supabase (sin necesidad de tablas)
+          isApplyingRemoteRef.current = true;
+          try {
+            if (broadcastType === 'MED_UPDATED' && broadcastPayload?.updatedMeds) {
+              setMedications(sortAlphabetical(broadcastPayload.updatedMeds));
+            } else if (broadcastType === 'MED_DELETED') {
+              if (broadcastPayload?.updatedMeds) {
+                setMedications(sortAlphabetical(broadcastPayload.updatedMeds));
+              } else if (broadcastPayload?.deletedId) {
+                setMedications(prev => prev.filter(m => m.id !== broadcastPayload.deletedId));
+              }
+            } else if (broadcastType === 'SALE_COMPLETED') {
+              if (broadcastPayload?.sale) {
+                setSales(prev => prev.some(s => s.id === broadcastPayload.sale.id) ? prev : [broadcastPayload.sale, ...prev]);
+              }
+              if (broadcastPayload?.updatedMeds) {
+                setMedications(sortAlphabetical(broadcastPayload.updatedMeds));
+              }
+            } else if (broadcastType === 'PURCHASE_REGISTERED') {
+              if (broadcastPayload?.purchase) {
+                setPurchases(prev => prev.some(p => p.id === broadcastPayload.purchase.id) ? prev : [broadcastPayload.purchase, ...prev]);
+              }
+              if (broadcastPayload?.updatedMeds) {
+                setMedications(sortAlphabetical(broadcastPayload.updatedMeds));
+              }
+            } else if (broadcastType === 'CUSTOMER_ADDED' && broadcastPayload?.customer) {
+              setCustomers(prev => prev.some(c => c.id === broadcastPayload.customer.id) ? prev : [...prev, broadcastPayload.customer]);
+            } else if (broadcastType === 'STAFF_UPDATED' && broadcastPayload?.staff) {
+              setStaff(broadcastPayload.staff);
+            } else if (broadcastType === 'CLEAR_DEMO') {
+              setMedications([]);
+              setCustomers([]);
+              setSales([]);
+              setPurchases([]);
+            }
+          } finally {
+            setTimeout(() => {
+              isApplyingRemoteRef.current = false;
+            }, 300);
+          }
         }
-        setCloudLastSync(new Date().toLocaleTimeString('es-ES'));
-        setTimeout(() => {
-          isApplyingRemoteRef.current = false;
-        }, 350);
-      });
+      );
 
       return () => {
         unsub();
@@ -418,8 +494,11 @@ export const useFarmaData = () => {
 
   useEffect(() => {
     localStorage.setItem('FARMA_STAFF', JSON.stringify(staff));
-    if (isInitialLoadedRef.current && !isApplyingRemoteRef.current && isCloudConnected) {
-      pushCollectionToSupabase('staff', staff);
+    if (isInitialLoadedRef.current && !isApplyingRemoteRef.current) {
+      broadcastSyncEvent('STAFF_UPDATED', { staff });
+      if (isCloudConnected) {
+        pushCollectionToSupabase('staff', staff);
+      }
     }
   }, [staff, isCloudConnected]);
 
@@ -908,6 +987,8 @@ export const useFarmaData = () => {
     handleExportFullBackup,
     handleImportFullBackup,
     isCloudConnected,
+    isCloudTableReady,
+    checkSupabaseTableReady,
     cloudLastSync,
     isSyncingWithCloud,
     handleConnectCloud,

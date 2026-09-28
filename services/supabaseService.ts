@@ -253,8 +253,56 @@ export const pullAllFromSupabase = async (): Promise<{ success: boolean; data?: 
   }
 };
 
+export const checkSupabaseTableReady = async (): Promise<{ ready: boolean; error?: string }> => {
+  const client = getSupabaseClient();
+  if (!client) return { ready: false, error: 'No configurado' };
+
+  try {
+    const { error } = await client
+      .from('farma_sync')
+      .select('id')
+      .limit(1);
+
+    if (error) {
+      if (error.code === '42P01' || error.message.includes('farma_sync') || error.message.includes('does not exist')) {
+        return { ready: false, error: 'TABLE_NOT_CREATED' };
+      }
+      return { ready: false, error: error.message };
+    }
+    return { ready: true };
+  } catch (err: any) {
+    return { ready: false, error: err.message };
+  }
+};
+
+let broadcastChannelInstance: any = null;
+
+export const broadcastViaSupabase = (type: string, payload: any) => {
+  const client = getSupabaseClient();
+  if (!client) return;
+
+  try {
+    if (!broadcastChannelInstance) {
+      broadcastChannelInstance = client.channel('farma-global-live');
+      broadcastChannelInstance.subscribe();
+    }
+    broadcastChannelInstance.send({
+      type: 'broadcast',
+      event: 'farma_event',
+      payload: {
+        type,
+        payload,
+        timestamp: Date.now()
+      }
+    });
+  } catch (e) {
+    console.debug('Error broadcasting via Supabase:', e);
+  }
+};
+
 export const subscribeToRealtimeChanges = (
-  onRemoteChange: (collectionId: string, data: any) => void
+  onRemoteChange: (collectionId: string, data: any) => void,
+  onBroadcastEvent?: (type: string, payload: any) => void
 ): (() => void) => {
   const client = getSupabaseClient();
   if (!client) return () => {};
@@ -266,7 +314,17 @@ export const subscribeToRealtimeChanges = (
 
   try {
     realtimeChannel = client
-      .channel('farma-realtime-room')
+      .channel('farma-global-live')
+      // 1. Mensajería instantánea directa (funciona sin tablas)
+      .on('broadcast', { event: 'farma_event' }, (payload: any) => {
+        if (payload?.payload) {
+          const { type, payload: eventPayload } = payload.payload;
+          if (type && onBroadcastEvent) {
+            onBroadcastEvent(type, eventPayload);
+          }
+        }
+      })
+      // 2. Cambios en base de datos Postgres (cuando la tabla farma_sync está creada)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'farma_sync' },
@@ -278,11 +336,14 @@ export const subscribeToRealtimeChanges = (
       )
       .subscribe();
 
+    broadcastChannelInstance = realtimeChannel;
+
     return () => {
       if (realtimeChannel) {
         realtimeChannel.unsubscribe();
         realtimeChannel = null;
       }
+      broadcastChannelInstance = null;
     };
   } catch (e) {
     console.error('Error creando suscripción en tiempo real:', e);
