@@ -411,22 +411,20 @@ const PosSystem: React.FC<PosSystemProps> = ({
 
             return (
               <div key={med.id} className="group bg-white rounded-2xl p-4 md:p-5 border border-slate-200/80 shadow-sm hover:shadow-md hover:border-emerald-500/30 transition-all duration-200 flex flex-col h-fit">
-                <div className="flex gap-4 mb-3">
-                  <div className="w-20 h-20 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 shrink-0 overflow-hidden shadow-inner group-hover:scale-105 transition-transform duration-300">
-                    <img src={med.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                      <span className="px-2 py-0.5 bg-slate-100 rounded-md text-[7px] font-black text-slate-500 uppercase tracking-widest">{med.laboratory}</span>
+                <div className="mb-3">
+                  <div className="flex items-center justify-between gap-1.5 mb-1.5 flex-wrap">
+                    <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-[9px] font-black text-slate-600 uppercase tracking-wider">{med.laboratory || 'GENÉRICO'}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="px-2 py-0.5 bg-slate-100 text-slate-500 rounded-md text-[8px] font-black uppercase">{med.category}</span>
                       {med.isControlled && (
-                        <span className="px-2 py-0.5 bg-rose-50 text-rose-600 rounded-md text-[7px] font-black uppercase tracking-widest flex items-center gap-1 animate-pulse">
+                        <span className="px-2 py-0.5 bg-rose-50 text-rose-600 rounded-md text-[8px] font-black uppercase tracking-widest flex items-center gap-1 animate-pulse">
                           <AlertCircle className="w-2.5 h-2.5"/> CTRL
                         </span>
                       )}
                     </div>
-                    <h3 className="text-base font-black text-slate-800 leading-tight group-hover:text-emerald-600 transition-colors line-clamp-2 uppercase">{med.name}</h3>
-                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight mt-1 truncate">{med.genericName}</p>
                   </div>
+                  <h3 className="text-base font-black text-slate-800 leading-tight group-hover:text-emerald-600 transition-colors line-clamp-2 uppercase">{med.name}</h3>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase tracking-tight mt-1 truncate">{med.genericName}</p>
                 </div>
 
                 {/* Expiration and Batch Alerts Tag */}
@@ -715,10 +713,7 @@ const PosSystem: React.FC<PosSystemProps> = ({
                     <Trash2 className="w-3.5 h-3.5"/>
                   </button>
                   
-                  <div className="flex justify-between items-start mb-3 gap-3">
-                    <div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center border border-slate-100 shrink-0 overflow-hidden shadow-inner">
-                      <img src={item.medication.imageUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                    </div>
+                  <div className="flex justify-between items-start mb-2 gap-3">
                     <div className="flex-1 min-w-0">
                       <h4 className="font-black text-slate-800 text-sm truncate pr-2 uppercase">{item.medication.name}</h4>
                       <div className="flex items-center gap-2 mt-0.5">

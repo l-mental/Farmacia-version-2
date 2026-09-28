@@ -14,16 +14,12 @@ const MedicationCard: React.FC<MedicationCardProps> = ({ medication, onAddToCart
 
   return (
     <div className="bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-sm hover:shadow-md transition-shadow group">
-      <div className="relative h-48 overflow-hidden">
-        <img 
-          src={medication.imageUrl} 
-          alt={medication.name} 
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-        />
+      <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+        <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">{medication.category}</span>
         {isPrescriptionRequired && (
-          <div className="absolute top-3 left-3 bg-amber-500/90 backdrop-blur-sm text-white text-[10px] font-bold px-2 py-1 rounded flex items-center gap-1 uppercase tracking-wider">
+          <div className="bg-amber-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 uppercase tracking-wider">
             <AlertTriangle className="w-3 h-3" />
-            Receta Obligatoria
+            Receta
           </div>
         )}
       </div>

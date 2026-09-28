@@ -104,12 +104,18 @@ export const startAutoSyncListener = (
   const room = getSyncRoom();
   currentRoom = room;
 
+  const processedMessageIds = new Set<string>();
+
   // Escuchar BroadcastChannel local
   const handleLocalMessage = (event: MessageEvent) => {
     try {
       const msg: SyncMessage = event.data;
       if (msg && msg.senderId !== CLIENT_INSTANCE_ID) {
-        onRemoteEvent(msg);
+        const msgKey = `${msg.senderId}_${msg.timestamp}_${msg.type}`;
+        if (!processedMessageIds.has(msgKey)) {
+          processedMessageIds.add(msgKey);
+          onRemoteEvent(msg);
+        }
       }
     } catch {}
   };
@@ -118,6 +124,39 @@ export const startAutoSyncListener = (
     localBroadcastChannel.addEventListener('message', handleLocalMessage);
   }
 
+  // Poll reciente para obtener cambios ocurridos mientras este dispositivo estuvo cerrado
+  const pollRecentChanges = async () => {
+    try {
+      const res = await fetch(`https://ntfy.sh/${currentRoom}/json?since=12h&poll=1`);
+      if (!res.ok) return;
+      const text = await res.text();
+      const lines = text.trim().split('\n');
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const raw = JSON.parse(line);
+          let syncData: SyncMessage | null = null;
+          if (raw.message) {
+            try { syncData = JSON.parse(raw.message); } catch {}
+          } else if (raw.type && raw.senderId) {
+            syncData = raw;
+          }
+          if (syncData && syncData.senderId !== CLIENT_INSTANCE_ID && syncData.timestamp) {
+            const msgKey = `${syncData.senderId}_${syncData.timestamp}_${syncData.type}`;
+            if (!processedMessageIds.has(msgKey)) {
+              processedMessageIds.add(msgKey);
+              onRemoteEvent(syncData);
+            }
+          }
+        } catch {}
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  pollRecentChanges();
+
   if (eventSource) {
     eventSource.close();
     eventSource = null;
@@ -125,7 +164,7 @@ export const startAutoSyncListener = (
 
   const connect = () => {
     try {
-      const url = `https://ntfy.sh/${currentRoom}/sse`;
+      const url = `https://ntfy.sh/${currentRoom}/sse?since=all`;
       eventSource = new EventSource(url);
 
       eventSource.onopen = () => {
@@ -149,8 +188,12 @@ export const startAutoSyncListener = (
             syncData = raw;
           }
 
-          if (syncData && syncData.senderId !== CLIENT_INSTANCE_ID) {
-            onRemoteEvent(syncData);
+          if (syncData && syncData.senderId !== CLIENT_INSTANCE_ID && syncData.timestamp) {
+            const msgKey = `${syncData.senderId}_${syncData.timestamp}_${syncData.type}`;
+            if (!processedMessageIds.has(msgKey)) {
+              processedMessageIds.add(msgKey);
+              onRemoteEvent(syncData);
+            }
           }
         } catch {
           // Ignorar mensajes mal formateados

@@ -1300,14 +1300,6 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                 >
                   {/* Left: Info */}
                   <div className="flex items-center gap-3.5 flex-1 min-w-0">
-                    <div className="w-12 h-12 md:w-14 md:h-14 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0 relative">
-                      <img src={med.imageUrl} alt={med.name} className="w-full h-full object-cover" />
-                      {med.isControlled && (
-                        <div className="absolute top-0 right-0 p-1 bg-amber-500 text-white rounded-bl-lg" title="Medicamento Controlado con Receta">
-                          <ShieldCheck className="w-2.5 h-2.5" />
-                        </div>
-                      )}
-                    </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="text-sm font-black text-slate-900 group-hover:text-emerald-700 transition-colors">
@@ -1316,6 +1308,11 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                         <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                           {med.category}
                         </span>
+                        {med.isControlled && (
+                          <span className="px-2 py-0.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-md text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
+                            <ShieldCheck className="w-3 h-3 text-rose-500" /> Controlado
+                          </span>
+                        )}
                       </div>
                       <p className="text-[11px] font-medium text-slate-400 truncate">
                         {med.genericName} • <span className="text-slate-600 font-semibold">{med.laboratory || 'N/A'}</span>

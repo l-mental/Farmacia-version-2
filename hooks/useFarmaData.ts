@@ -165,11 +165,15 @@ export const useFarmaData = () => {
             if (msg.payload?.sale) {
               setSales(prev => {
                 if (prev.some(s => s.id === msg.payload.sale.id)) return prev;
-                return [msg.payload.sale, ...prev];
+                const nextSales = [msg.payload.sale, ...prev];
+                try { localStorage.setItem('FARMA_SALES', JSON.stringify(nextSales)); } catch {}
+                return nextSales;
               });
             }
             if (msg.payload?.updatedMeds && Array.isArray(msg.payload.updatedMeds)) {
-              setMedications(sortAlphabetical(msg.payload.updatedMeds));
+              const sorted = sortAlphabetical(msg.payload.updatedMeds);
+              setMedications(sorted);
+              try { localStorage.setItem('FARMA_MEDS', JSON.stringify(sorted)); } catch {}
             }
             break;
           }
@@ -177,11 +181,15 @@ export const useFarmaData = () => {
             if (msg.payload?.purchase) {
               setPurchases(prev => {
                 if (prev.some(p => p.id === msg.payload.purchase.id)) return prev;
-                return [msg.payload.purchase, ...prev];
+                const nextPurchases = [msg.payload.purchase, ...prev];
+                try { localStorage.setItem('FARMA_PURCHASES', JSON.stringify(nextPurchases)); } catch {}
+                return nextPurchases;
               });
             }
             if (msg.payload?.updatedMeds && Array.isArray(msg.payload.updatedMeds)) {
-              setMedications(sortAlphabetical(msg.payload.updatedMeds));
+              const sorted = sortAlphabetical(msg.payload.updatedMeds);
+              setMedications(sorted);
+              try { localStorage.setItem('FARMA_MEDS', JSON.stringify(sorted)); } catch {}
             }
             break;
           }
@@ -189,30 +197,51 @@ export const useFarmaData = () => {
             if (msg.payload?.customer) {
               setCustomers(prev => {
                 if (prev.some(c => c.id === msg.payload.customer.id)) return prev;
-                return [...prev, msg.payload.customer];
+                const nextCustomers = [...prev, msg.payload.customer];
+                try { localStorage.setItem('FARMA_CUSTOMERS', JSON.stringify(nextCustomers)); } catch {}
+                return nextCustomers;
+              });
+            }
+            break;
+          }
+          case 'MED_DELETED': {
+            if (msg.payload?.updatedMeds && Array.isArray(msg.payload.updatedMeds)) {
+              const sorted = sortAlphabetical(msg.payload.updatedMeds);
+              setMedications(sorted);
+              try { localStorage.setItem('FARMA_MEDS', JSON.stringify(sorted)); } catch {}
+            } else if (msg.payload?.deletedId) {
+              setMedications(prev => {
+                const filtered = prev.filter(m => m.id !== msg.payload.deletedId);
+                try { localStorage.setItem('FARMA_MEDS', JSON.stringify(filtered)); } catch {}
+                return filtered;
               });
             }
             break;
           }
           case 'MED_UPDATED':
-          case 'MED_DELETED':
           case 'MEDS_BATCH_ADDED': {
             if (msg.payload?.updatedMeds && Array.isArray(msg.payload.updatedMeds)) {
-              setMedications(sortAlphabetical(msg.payload.updatedMeds));
+              const sorted = sortAlphabetical(msg.payload.updatedMeds);
+              setMedications(sorted);
+              try { localStorage.setItem('FARMA_MEDS', JSON.stringify(sorted)); } catch {}
             } else if (msg.payload?.newMeds && Array.isArray(msg.payload.newMeds)) {
-              setMedications(sortAlphabetical(msg.payload.newMeds));
+              const sorted = sortAlphabetical(msg.payload.newMeds);
+              setMedications(sorted);
+              try { localStorage.setItem('FARMA_MEDS', JSON.stringify(sorted)); } catch {}
             }
             break;
           }
           case 'DISCOUNTS_UPDATED': {
             if (msg.payload?.discountPlans && Array.isArray(msg.payload.discountPlans)) {
               setDiscountPlans(msg.payload.discountPlans);
+              try { localStorage.setItem('FARMA_DISCOUNTS', JSON.stringify(msg.payload.discountPlans)); } catch {}
             }
             break;
           }
           case 'PHARMACY_INFO_UPDATED': {
             if (msg.payload?.pharmacyInfo) {
               setPharmacyInfo(msg.payload.pharmacyInfo);
+              try { localStorage.setItem('FARMA_INFO', JSON.stringify(msg.payload.pharmacyInfo)); } catch {}
             }
             break;
           }
@@ -221,6 +250,12 @@ export const useFarmaData = () => {
             setCustomers([]);
             setSales([]);
             setPurchases([]);
+            try {
+              localStorage.removeItem('FARMA_MEDS');
+              localStorage.removeItem('FARMA_CUSTOMERS');
+              localStorage.removeItem('FARMA_SALES');
+              localStorage.removeItem('FARMA_PURCHASES');
+            } catch {}
             break;
           }
           case 'REQUEST_SYNC': {
@@ -240,23 +275,33 @@ export const useFarmaData = () => {
           case 'PROVIDE_SYNC': {
             if (msg.payload) {
               if (Array.isArray(msg.payload.medications) && msg.payload.medications.length > 0) {
-                setMedications(sortAlphabetical(msg.payload.medications));
+                const sorted = sortAlphabetical(msg.payload.medications);
+                setMedications(sorted);
+                try { localStorage.setItem('FARMA_MEDS', JSON.stringify(sorted)); } catch {}
               }
               if (Array.isArray(msg.payload.customers) && msg.payload.customers.length > 0) {
                 setCustomers(msg.payload.customers);
+                try { localStorage.setItem('FARMA_CUSTOMERS', JSON.stringify(msg.payload.customers)); } catch {}
               }
               if (Array.isArray(msg.payload.sales) && msg.payload.sales.length > 0) {
                 setSales(msg.payload.sales);
+                try { localStorage.setItem('FARMA_SALES', JSON.stringify(msg.payload.sales)); } catch {}
               }
               if (Array.isArray(msg.payload.purchases) && msg.payload.purchases.length > 0) {
                 setPurchases(msg.payload.purchases);
+                try { localStorage.setItem('FARMA_PURCHASES', JSON.stringify(msg.payload.purchases)); } catch {}
               }
               if (Array.isArray(msg.payload.suppliers) && msg.payload.suppliers.length > 0) {
                 setSuppliers(msg.payload.suppliers);
+                try { localStorage.setItem('FARMA_SUPPLIERS', JSON.stringify(msg.payload.suppliers)); } catch {}
               }
-              if (msg.payload.pharmacyInfo) setPharmacyInfo(msg.payload.pharmacyInfo);
+              if (msg.payload.pharmacyInfo) {
+                setPharmacyInfo(msg.payload.pharmacyInfo);
+                try { localStorage.setItem('FARMA_INFO', JSON.stringify(msg.payload.pharmacyInfo)); } catch {}
+              }
               if (Array.isArray(msg.payload.discountPlans) && msg.payload.discountPlans.length > 0) {
                 setDiscountPlans(msg.payload.discountPlans);
+                try { localStorage.setItem('FARMA_DISCOUNTS', JSON.stringify(msg.payload.discountPlans)); } catch {}
               }
             }
             break;
@@ -598,8 +643,10 @@ export const useFarmaData = () => {
   const handleDeleteMedication = (id: string) => {
     setMedications(prev => {
       const updated = prev.filter(m => m.id !== id);
-      localStorage.setItem('FARMA_MEDS', JSON.stringify(updated));
-      broadcastSyncEvent('MED_UPDATED', { updatedMeds: updated });
+      try {
+        localStorage.setItem('FARMA_MEDS', JSON.stringify(updated));
+      } catch {}
+      broadcastSyncEvent('MED_DELETED', { deletedId: id, updatedMeds: updated });
       return updated;
     });
   };
