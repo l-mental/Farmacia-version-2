@@ -72,8 +72,9 @@ export const getStoredSupabaseConfig = (): { url: string; anonKey: string } => {
     // ignore
   }
   
-  const envUrlRaw = (import.meta as any).env?.VITE_SUPABASE_URL || '';
-  const envKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
+  const env = (import.meta as any).env || {};
+  const envUrlRaw = env.VITE_SUPABASE_URL || env.SUPABASE_URL || env.STORAGE_URL || env.VITE_STORAGE_URL || '';
+  const envKey = env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY || env.STORAGE_ANON_KEY || env.SUPABASE_KEY || env.STORAGE_KEY || '';
 
   const normalizedLocal = normalizeSupabaseUrl(localUrlRaw);
   const normalizedEnv = normalizeSupabaseUrl(envUrlRaw);
