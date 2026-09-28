@@ -201,6 +201,26 @@ export const testSupabaseConnection = async (url: string, anonKey: string): Prom
 };
 
 export const pushCollectionToSupabase = async (collectionId: string, data: any): Promise<boolean> => {
+  // 1. Probar endpoint serverless /api/sync (Postgres en Vercel con creación automática de tablas)
+  try {
+    const res = await fetch('/api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ collection: collectionId, data })
+    });
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success) {
+        localStorage.setItem('FARMA_SUPABASE_LAST_SYNC', new Date().toISOString());
+        broadcastViaSupabase(collectionId === 'staff' ? 'STAFF_UPDATED' : 'MED_UPDATED', { [collectionId]: data });
+        return true;
+      }
+    }
+  } catch {
+    // Si no está disponible /api/sync (ej. entorno Vite local), pasa al cliente Supabase
+  }
+
+  // 2. Cliente directo de Supabase
   const client = getSupabaseClient();
   if (!client) return false;
 
@@ -219,6 +239,7 @@ export const pushCollectionToSupabase = async (collectionId: string, data: any):
     }
 
     localStorage.setItem('FARMA_SUPABASE_LAST_SYNC', new Date().toISOString());
+    broadcastViaSupabase(collectionId === 'staff' ? 'STAFF_UPDATED' : 'MED_UPDATED', { [collectionId]: data });
     return true;
   } catch (e) {
     console.warn(`Excepción al subir ${collectionId}:`, e);
@@ -227,6 +248,21 @@ export const pushCollectionToSupabase = async (collectionId: string, data: any):
 };
 
 export const pullAllFromSupabase = async (): Promise<{ success: boolean; data?: Record<string, any>; error?: string }> => {
+  // 1. Probar endpoint serverless /api/sync (Postgres en Vercel)
+  try {
+    const res = await fetch('/api/sync');
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success && json.data && Object.keys(json.data).length > 0) {
+        localStorage.setItem('FARMA_SUPABASE_LAST_SYNC', new Date().toISOString());
+        return { success: true, data: json.data };
+      }
+    }
+  } catch {
+    // Pasa al cliente Supabase
+  }
+
+  // 2. Cliente directo de Supabase
   const client = getSupabaseClient();
   if (!client) return { success: false, error: 'Supabase no configurado.' };
 

@@ -18,7 +18,7 @@ import SettingsModal from '@/components/modals/SettingsModal';
 import NewPatientModal from '@/components/modals/NewPatientModal';
 import SystemNotificationBanner from '@/components/SystemNotificationBanner';
 import { SupabaseSetupModal } from '@/components/modals/SupabaseSetupModal';
-import { getStoredSupabaseConfig } from '@/services/supabaseService';
+import { getStoredSupabaseConfig, pullAllFromSupabase } from '@/services/supabaseService';
 import { canUserAccessSection } from '@/types';
 import { Database } from 'lucide-react';
 
@@ -106,7 +106,20 @@ const AppContent: React.FC = () => {
   }, [darkMode]);
 
   if (!currentUser) {
-    return <Login onLogin={handleLogin} staff={staff} />;
+    return (
+      <Login 
+        onLogin={handleLogin} 
+        staff={staff} 
+        onRefreshStaff={async () => {
+          const res = await pullAllFromSupabase();
+          if (res.success && res.data?.staff && Array.isArray(res.data.staff)) {
+            setStaff(res.data.staff);
+            return res.data.staff;
+          }
+          return staff;
+        }}
+      />
+    );
   }
 
   const activeTab = (location.pathname.split('/')[1]?.toUpperCase() || 'DASHBOARD') as TabType;

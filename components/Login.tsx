@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { HeartPulse, Lock, User as UserIcon, ArrowRight, Shield, ShoppingCart, Pill, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import { HeartPulse, Lock, User as UserIcon, ArrowRight, Shield, ShoppingCart, Pill, Eye, EyeOff, CheckCircle2, RefreshCw } from 'lucide-react';
 import { UserRole, User } from '@/types';
 import { jwtDecode } from 'jwt-decode';
+import { pullAllFromSupabase } from '@/services/supabaseService';
 
 interface LoginProps {
   onLogin: (user: User) => void;
   staff?: User[];
+  onRefreshStaff?: () => Promise<User[]>;
 }
 
 const MASTER_ADMIN: User = {
@@ -21,16 +23,54 @@ const MASTER_ADMIN: User = {
   }
 };
 
-const Login: React.FC<LoginProps> = ({ onLogin, staff = [] }) => {
+const Login: React.FC<LoginProps> = ({ onLogin, staff = [], onRefreshStaff }) => {
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('admin');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [hasGoogleClient, setHasGoogleClient] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [remoteStaff, setRemoteStaff] = useState<User[]>(staff);
 
-  // Combine default admin with staff passed via props or from localStorage
+  useEffect(() => {
+    if (staff && staff.length > 0) {
+      setRemoteStaff(staff);
+    }
+  }, [staff]);
+
+  // Al abrir la pantalla de login (ej. en un celular nuevo), consultar inmediatamente la base de datos
+  const handleRefresh = async () => {
+    setIsSyncing(true);
+    try {
+      if (onRefreshStaff) {
+        const refreshed = await onRefreshStaff();
+        if (Array.isArray(refreshed) && refreshed.length > 0) {
+          setRemoteStaff(refreshed);
+          return;
+        }
+      }
+      
+      const res = await pullAllFromSupabase();
+      if (res.success && res.data?.staff && Array.isArray(res.data.staff) && res.data.staff.length > 0) {
+        setRemoteStaff(res.data.staff);
+        try {
+          localStorage.setItem('FARMA_STAFF', JSON.stringify(res.data.staff));
+        } catch {}
+      }
+    } catch (e) {
+      console.debug('Error refreshing staff in login:', e);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  useEffect(() => {
+    handleRefresh();
+  }, []);
+
+  // Combinar admin maestro con el personal cargado
   const allStaff: User[] = React.useMemo(() => {
-    let list: User[] = [...staff];
+    let list: User[] = [...remoteStaff];
     if (list.length === 0) {
       try {
         const saved = localStorage.getItem('FARMA_STAFF');
@@ -39,12 +79,12 @@ const Login: React.FC<LoginProps> = ({ onLogin, staff = [] }) => {
         }
       } catch {}
     }
-    // Ensure master admin is included if not present
+    // Asegurar que el admin maestro siempre esté disponible
     if (!list.some(u => u.username.toLowerCase() === 'admin')) {
       return [MASTER_ADMIN, ...list];
     }
     return list;
-  }, [staff]);
+  }, [remoteStaff]);
 
   useEffect(() => {
     // Initialize Google One Tap / Sign In if configured
@@ -101,7 +141,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, staff = [] }) => {
     // Check in registered staff
     const foundUser = allStaff.find(u => u.username.toLowerCase() === cleanUser);
     if (!foundUser) {
-      setErrorMsg(`El usuario "${username}" no existe en el sistema. Puedes ingresar como "admin" o pedir al Administrador que te registre en Gestión de Personal.`);
+      setErrorMsg(`El usuario "${username}" no fue encontrado en la base de datos. Haz clic en "Actualizar Cuentas" arriba para sincronizar con la computadora o entra con "admin".`);
       return;
     }
 
@@ -139,58 +179,69 @@ const Login: React.FC<LoginProps> = ({ onLogin, staff = [] }) => {
         </div>
 
         <div className="bg-white p-7 sm:p-9 rounded-[2.5rem] shadow-2xl border border-white/10 space-y-6">
-          {/* Selector Rápido de Cuentas Registradas */}
-          {allStaff.length > 0 && (
-            <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2.5">
-                Seleccionar Personal Registrado
+          {/* Selector Rápido de Cuentas Registradas con Botón de Actualizar */}
+          <div>
+            <div className="flex items-center justify-between mb-2.5">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Personal Registrado en la Base de Datos
               </label>
-              <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
-                {allStaff.map(u => {
-                  const isSelected = username.toLowerCase() === u.username.toLowerCase();
-                  const roleBadge = u.role === 'ADMIN' 
-                    ? { label: 'Administrador', bg: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: Shield }
-                    : u.role === 'PHARMACIST'
-                    ? { label: 'Farmacéutico', bg: 'bg-indigo-100 text-indigo-800 border-indigo-200', icon: Pill }
-                    : { label: 'Cajero / Ventas', bg: 'bg-sky-100 text-sky-800 border-sky-200', icon: ShoppingCart };
-
-                  const Icon = roleBadge.icon;
-
-                  return (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => selectUserPreset(u)}
-                      className={`text-left p-2.5 rounded-2xl border transition-all flex items-center justify-between cursor-pointer ${
-                        isSelected 
-                          ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-500/20 shadow-sm' 
-                          : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100 hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
-                          isSelected ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'
-                        }`}>
-                          {u.name.charAt(0)}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-black text-slate-900 truncate">{u.name}</p>
-                          <p className="text-[10px] text-slate-400 font-mono">@{u.username}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md border flex items-center gap-1 ${roleBadge.bg}`}>
-                          <Icon className="w-2.5 h-2.5" />
-                          {roleBadge.label}
-                        </span>
-                        {isSelected && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+              <button
+                type="button"
+                onClick={handleRefresh}
+                disabled={isSyncing}
+                className="text-[10px] font-black text-emerald-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer transition-colors bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded-lg border border-emerald-200"
+                title="Buscar nuevos usuarios creados desde la PC"
+              >
+                <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin text-emerald-600' : ''}`} />
+                <span>{isSyncing ? 'Buscando...' : 'Actualizar Cuentas'}</span>
+              </button>
             </div>
-          )}
+
+            <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
+              {allStaff.map(u => {
+                const isSelected = username.toLowerCase() === u.username.toLowerCase();
+                const roleBadge = u.role === 'ADMIN' 
+                  ? { label: 'Administrador', bg: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: Shield }
+                  : u.role === 'PHARMACIST'
+                  ? { label: 'Farmacéutico', bg: 'bg-indigo-100 text-indigo-800 border-indigo-200', icon: Pill }
+                  : { label: 'Cajero / Ventas', bg: 'bg-sky-100 text-sky-800 border-sky-200', icon: ShoppingCart };
+
+                const Icon = roleBadge.icon;
+
+                return (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => selectUserPreset(u)}
+                    className={`text-left p-2.5 rounded-2xl border transition-all flex items-center justify-between cursor-pointer ${
+                      isSelected 
+                        ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-500/20 shadow-sm' 
+                        : 'bg-slate-50 border-slate-200/80 hover:bg-slate-100 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
+                        isSelected ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {u.name.charAt(0)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-black text-slate-900 truncate">{u.name}</p>
+                        <p className="text-[10px] text-slate-400 font-mono">@{u.username}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md border flex items-center gap-1 ${roleBadge.bg}`}>
+                        <Icon className="w-2.5 h-2.5" />
+                        {roleBadge.label}
+                      </span>
+                      {isSelected && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
           <form onSubmit={handleLogin} className="space-y-4 pt-1">
             {errorMsg && (
