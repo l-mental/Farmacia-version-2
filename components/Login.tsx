@@ -23,6 +23,21 @@ const MASTER_ADMIN: User = {
   }
 };
 
+const JOSUE_DEFAULT: User = {
+  id: 'U_JOSUE_BALBOA',
+  name: 'Josue Balboa',
+  username: 'josue',
+  password: '123',
+  role: 'EMPLOYEE',
+  originalRole: 'EMPLOYEE',
+  customRoleName: 'Cajero / Ventas',
+  assignedRegister: 'Caja 1',
+  permissions: {
+    allowedSections: ['POS', 'INVENTORY', 'CUSTOMERS'],
+    canEditInventory: false
+  }
+};
+
 const Login: React.FC<LoginProps> = ({ onLogin, staff = [], onRefreshStaff }) => {
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('admin');
@@ -42,20 +57,23 @@ const Login: React.FC<LoginProps> = ({ onLogin, staff = [], onRefreshStaff }) =>
   const handleRefresh = async () => {
     setIsSyncing(true);
     try {
-      if (onRefreshStaff) {
-        const refreshed = await onRefreshStaff();
-        if (Array.isArray(refreshed) && refreshed.length > 0) {
-          setRemoteStaff(refreshed);
-          return;
-        }
-      }
-      
+      // 1. Consultar directo /api/sync y Supabase en la nube
       const res = await pullAllFromSupabase();
       if (res.success && res.data?.staff && Array.isArray(res.data.staff) && res.data.staff.length > 0) {
         setRemoteStaff(res.data.staff);
         try {
           localStorage.setItem('FARMA_STAFF', JSON.stringify(res.data.staff));
         } catch {}
+        return;
+      }
+
+      // 2. Probar callback si existe
+      if (onRefreshStaff) {
+        const refreshed = await onRefreshStaff();
+        if (Array.isArray(refreshed) && refreshed.length > 0) {
+          setRemoteStaff(refreshed);
+          return;
+        }
       }
     } catch (e) {
       console.debug('Error refreshing staff in login:', e);
@@ -66,9 +84,15 @@ const Login: React.FC<LoginProps> = ({ onLogin, staff = [], onRefreshStaff }) =>
 
   useEffect(() => {
     handleRefresh();
+    // Auto-detección en segundo plano: si un administrador crea un usuario en la PC,
+    // aparece automáticamente en la pantalla del celular sin tener que recargar
+    const interval = setInterval(() => {
+      handleRefresh();
+    }, 3500);
+    return () => clearInterval(interval);
   }, []);
 
-  // Combinar admin maestro con el personal cargado
+  // Combinar admin maestro y Josue con el personal cargado
   const allStaff: User[] = React.useMemo(() => {
     let list: User[] = [...remoteStaff];
     if (list.length === 0) {
@@ -81,7 +105,11 @@ const Login: React.FC<LoginProps> = ({ onLogin, staff = [], onRefreshStaff }) =>
     }
     // Asegurar que el admin maestro siempre esté disponible
     if (!list.some(u => u.username.toLowerCase() === 'admin')) {
-      return [MASTER_ADMIN, ...list];
+      list = [MASTER_ADMIN, ...list];
+    }
+    // Asegurar que Josue Balboa esté disponible por defecto
+    if (!list.some(u => u.username.toLowerCase() === 'josue')) {
+      list = [...list, JOSUE_DEFAULT];
     }
     return list;
   }, [remoteStaff]);
@@ -120,12 +148,17 @@ const Login: React.FC<LoginProps> = ({ onLogin, staff = [], onRefreshStaff }) =>
     });
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
     const cleanUser = username.trim().toLowerCase();
     const cleanPass = password.trim();
+
+    if (!cleanUser) {
+      setErrorMsg('Por favor ingrese el nombre de usuario.');
+      return;
+    }
 
     // Check Master Admin
     if (cleanUser === 'admin') {
@@ -138,10 +171,31 @@ const Login: React.FC<LoginProps> = ({ onLogin, staff = [], onRefreshStaff }) =>
       }
     }
 
-    // Check in registered staff
-    const foundUser = allStaff.find(u => u.username.toLowerCase() === cleanUser);
+    // 1. Buscar en personal cargado en memoria
+    let foundUser = allStaff.find(u => u.username.toLowerCase() === cleanUser);
+
+    // 2. Si no se encuentra en memoria (ej. el usuario fue recién creado desde la PC),
+    // consultar inmediatamente la base de datos en la nube antes de fallar
     if (!foundUser) {
-      setErrorMsg(`El usuario "${username}" no fue encontrado en la base de datos. Haz clic en "Actualizar Cuentas" arriba para sincronizar con la computadora o entra con "admin".`);
+      setIsSyncing(true);
+      try {
+        const res = await pullAllFromSupabase();
+        if (res.success && res.data?.staff && Array.isArray(res.data.staff)) {
+          setRemoteStaff(res.data.staff);
+          try {
+            localStorage.setItem('FARMA_STAFF', JSON.stringify(res.data.staff));
+          } catch {}
+          foundUser = res.data.staff.find((u: User) => u.username.toLowerCase() === cleanUser);
+        }
+      } catch (err) {
+        console.debug('Error verificando usuario remoto en handleLogin:', err);
+      } finally {
+        setIsSyncing(false);
+      }
+    }
+
+    if (!foundUser) {
+      setErrorMsg(`El usuario "${username}" no fue encontrado en la base de datos. Verifica que el nombre esté bien escrito o haz clic en "Actualizar Cuentas".`);
       return;
     }
 

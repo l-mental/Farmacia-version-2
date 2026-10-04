@@ -6,6 +6,8 @@ import {
   UserCog, Store, KeyRound, Sparkles
 } from 'lucide-react';
 import { User, UserRole, AppSection, UserPermissions, DEFAULT_ROLE_PERMISSIONS } from '@/types';
+import { pushCollectionToSupabase } from '@/services/supabaseService';
+import { broadcastSyncEvent } from '@/services/autoSyncService';
 
 interface StaffManagerProps {
   staff: User[];
@@ -167,7 +169,7 @@ const StaffManager: React.FC<StaffManagerProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.name?.trim()) {
@@ -199,10 +201,19 @@ const StaffManager: React.FC<StaffManagerProps> = ({
       }
     };
 
-    if (editingUser) onUpdate(newUser);
-    else onAdd(newUser);
-
     setIsModalOpen(false);
+
+    if (editingUser) {
+      const nextStaff = staff.map(u => u.id === newUser.id ? newUser : u);
+      onUpdate(newUser);
+      await pushCollectionToSupabase('staff', nextStaff);
+      broadcastSyncEvent('STAFF_UPDATED', { staff: nextStaff });
+    } else {
+      const nextStaff = [...staff, newUser];
+      onAdd(newUser);
+      await pushCollectionToSupabase('staff', nextStaff);
+      broadcastSyncEvent('STAFF_UPDATED', { staff: nextStaff });
+    }
   };
 
   return (
@@ -349,9 +360,12 @@ const StaffManager: React.FC<StaffManagerProps> = ({
                   <Edit2 className="w-3 h-3" /> Editar Roles
                 </button>
                 <button 
-                  onClick={() => {
+                  onClick={async () => {
                     if (confirm(`¿Eliminar al usuario ${member.name}?`)) {
+                      const nextStaff = staff.filter(u => u.id !== member.id);
                       onDelete(member.id);
+                      await pushCollectionToSupabase('staff', nextStaff);
+                      broadcastSyncEvent('STAFF_UPDATED', { staff: nextStaff });
                     }
                   }}
                   className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"

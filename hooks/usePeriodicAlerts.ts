@@ -47,9 +47,10 @@ export const usePeriodicAlerts = (medications: Medication[]) => {
   // Compute alert-worthy items
   const getAlertItems = useCallback(() => {
     const now = Date.now();
-    const lowStock = medications.filter(m => m.stockBoxes <= m.minStock);
-    const expired = medications.filter(m => {
-      const exp = m.batches[0]?.expiryDate;
+    const safeMeds = Array.isArray(medications) ? medications.filter(Boolean) : [];
+    const lowStock = safeMeds.filter(m => (m.stockBoxes ?? 0) <= (m.minStock ?? 0));
+    const expired = safeMeds.filter(m => {
+      const exp = m.batches?.[0]?.expiryDate;
       if (!exp) return false;
       const t = new Date(exp).getTime();
       return !isNaN(t) && t < now;
@@ -60,8 +61,8 @@ export const usePeriodicAlerts = (medications: Medication[]) => {
     if (settings.notifyLowStock) {
       lowStock.forEach(m => {
         items.push({
-          name: m.name,
-          detail: `Stock crítico: ${m.stockBoxes} cajas (Mínimo: ${m.minStock})`,
+          name: m.name || 'Producto',
+          detail: `Stock crítico: ${m.stockBoxes ?? 0} cajas (Mínimo: ${m.minStock ?? 0})`,
           type: 'LOW_STOCK'
         });
       });
@@ -70,8 +71,8 @@ export const usePeriodicAlerts = (medications: Medication[]) => {
     if (settings.notifyExpiry) {
       expired.forEach(m => {
         items.push({
-          name: m.name,
-          detail: `Producto Vencido (Lote: ${m.batches[0]?.lotNumber || 'S/L'})`,
+          name: m.name || 'Producto',
+          detail: `Producto Vencido (Lote: ${m.batches?.[0]?.lotNumber || 'S/L'})`,
           type: 'EXPIRED'
         });
       });

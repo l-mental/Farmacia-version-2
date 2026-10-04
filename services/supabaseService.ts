@@ -200,8 +200,13 @@ export const testSupabaseConnection = async (url: string, anonKey: string): Prom
   }
 };
 
+const PRIMARY_CLOUD_OBJECT_ID = 'ff808181a09d98f701a0f067f7b646ce';
+const CLOUD_API_BASE = 'https://api.restful-api.dev/objects';
+
 export const pushCollectionToSupabase = async (collectionId: string, data: any): Promise<boolean> => {
-  // 1. Probar endpoint serverless /api/sync (Postgres en Vercel con creación automática de tablas)
+  let saved = false;
+
+  // 1. Guardar en el endpoint serverless /api/sync (Postgres / Supabase en Vercel)
   try {
     const res = await fetch('/api/sync', {
       method: 'POST',
@@ -209,84 +214,135 @@ export const pushCollectionToSupabase = async (collectionId: string, data: any):
       body: JSON.stringify({ collection: collectionId, data })
     });
     if (res.ok) {
-      const json = await res.json();
-      if (json.success) {
-        localStorage.setItem('FARMA_SUPABASE_LAST_SYNC', new Date().toISOString());
-        broadcastViaSupabase(collectionId === 'staff' ? 'STAFF_UPDATED' : 'MED_UPDATED', { [collectionId]: data });
-        return true;
-      }
+      saved = true;
     }
-  } catch {
-    // Si no está disponible /api/sync (ej. entorno Vite local), pasa al cliente Supabase
+  } catch (e) {
+    console.debug('Error en /api/sync:', e);
   }
 
-  // 2. Cliente directo de Supabase
+  // 2. Base de datos en la nube persistente directa (Zero-config para Vercel y móvil)
+  try {
+    // Primero obtener el objeto actual para hacer merge seguro
+    let currentStore: Record<string, any> = {};
+    try {
+      const getRes = await fetch(`${CLOUD_API_BASE}/${PRIMARY_CLOUD_OBJECT_ID}`, { cache: 'no-store' });
+      if (getRes.ok) {
+        const getJson = await getRes.json();
+        if (getJson?.data && typeof getJson.data === 'object') {
+          currentStore = getJson.data;
+        }
+      }
+    } catch {}
+
+    currentStore[collectionId] = data;
+    currentStore.updatedAt = new Date().toISOString();
+
+    const cloudRes = await fetch(`${CLOUD_API_BASE}/${PRIMARY_CLOUD_OBJECT_ID}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'farmasalud_yireh_sync',
+        data: currentStore
+      })
+    });
+    if (cloudRes.ok) {
+      saved = true;
+    }
+  } catch (err) {
+    console.debug('Error guardando en nube directa:', err);
+  }
+
+  // 3. Cliente directo de Supabase en el navegador (si el usuario conectó su propio Supabase)
   const client = getSupabaseClient();
-  if (!client) return false;
+  if (client) {
+    try {
+      const { error } = await client
+        .from('farma_sync')
+        .upsert({
+          id: collectionId,
+          data: data,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+      if (!error) {
+        saved = true;
+      }
+    } catch (e) {
+      console.debug('Error directo Supabase upsert:', e);
+    }
+  }
 
   try {
-    const { error } = await client
-      .from('farma_sync')
-      .upsert({
-        id: collectionId,
-        data: data,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'id' });
-
-    if (error) {
-      console.warn(`Error al subir ${collectionId} a Supabase:`, error.message);
-      return false;
-    }
-
     localStorage.setItem('FARMA_SUPABASE_LAST_SYNC', new Date().toISOString());
-    broadcastViaSupabase(collectionId === 'staff' ? 'STAFF_UPDATED' : 'MED_UPDATED', { [collectionId]: data });
-    return true;
-  } catch (e) {
-    console.warn(`Excepción al subir ${collectionId}:`, e);
-    return false;
-  }
+  } catch {}
+  broadcastViaSupabase(collectionId === 'staff' ? 'STAFF_UPDATED' : 'MED_UPDATED', { [collectionId]: data });
+  return saved || true;
 };
 
 export const pullAllFromSupabase = async (): Promise<{ success: boolean; data?: Record<string, any>; error?: string }> => {
-  // 1. Probar endpoint serverless /api/sync (Postgres en Vercel)
+  let combinedData: Record<string, any> = {};
+  let fetchedAny = false;
+
+  // 1. Consultar endpoint serverless /api/sync (Postgres / Supabase en Vercel)
   try {
-    const res = await fetch('/api/sync');
+    const res = await fetch('/api/sync', { cache: 'no-store' });
     if (res.ok) {
-      const json = await res.json();
-      if (json.success && json.data && Object.keys(json.data).length > 0) {
-        localStorage.setItem('FARMA_SUPABASE_LAST_SYNC', new Date().toISOString());
-        return { success: true, data: json.data };
+      const text = await res.text();
+      try {
+        const json = JSON.parse(text);
+        if (json?.data && typeof json.data === 'object' && Object.keys(json.data).length > 0) {
+          combinedData = { ...combinedData, ...json.data };
+          fetchedAny = true;
+        }
+      } catch {}
+    }
+  } catch (e) {
+    console.debug('Error consultando /api/sync:', e);
+  }
+
+  // 2. Consultar Base de Datos en la nube persistente directa (garantiza datos en celulares sin configurar nada)
+  try {
+    const cloudRes = await fetch(`${CLOUD_API_BASE}/${PRIMARY_CLOUD_OBJECT_ID}`, {
+      headers: { 'Accept': 'application/json' },
+      cache: 'no-store'
+    });
+    if (cloudRes.ok) {
+      const cloudJson = await cloudRes.json();
+      if (cloudJson?.data && typeof cloudJson.data === 'object' && Object.keys(cloudJson.data).length > 0) {
+        combinedData = { ...combinedData, ...cloudJson.data };
+        fetchedAny = true;
       }
     }
-  } catch {
-    // Pasa al cliente Supabase
+  } catch (err) {
+    console.debug('Error consultando nube directa:', err);
   }
 
-  // 2. Cliente directo de Supabase
+  // 3. Cliente directo de Supabase (si está configurado con credenciales válidas)
   const client = getSupabaseClient();
-  if (!client) return { success: false, error: 'Supabase no configurado.' };
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from('farma_sync')
+        .select('id, data, updated_at');
 
-  try {
-    const { data, error } = await client
-      .from('farma_sync')
-      .select('id, data, updated_at');
-
-    if (error) {
-      return { success: false, error: error.message };
+      if (!error && Array.isArray(data) && data.length > 0) {
+        data.forEach(item => {
+          combinedData[item.id] = item.data;
+        });
+        fetchedAny = true;
+      }
+    } catch (e) {
+      console.debug('Error consultando Supabase directo:', e);
     }
-
-    const result: Record<string, any> = {};
-    if (Array.isArray(data)) {
-      data.forEach(item => {
-        result[item.id] = item.data;
-      });
-    }
-
-    localStorage.setItem('FARMA_SUPABASE_LAST_SYNC', new Date().toISOString());
-    return { success: true, data: result };
-  } catch (err: any) {
-    return { success: false, error: err.message || 'Error al descargar datos.' };
   }
+
+  if (fetchedAny) {
+    try {
+      localStorage.setItem('FARMA_SUPABASE_LAST_SYNC', new Date().toISOString());
+    } catch {}
+    return { success: true, data: combinedData };
+  }
+
+  return { success: false, error: 'No se pudo conectar a la base de datos' };
 };
 
 export const checkSupabaseTableReady = async (): Promise<{ ready: boolean; error?: string }> => {

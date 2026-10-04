@@ -112,11 +112,11 @@ const AppContent: React.FC = () => {
         staff={staff} 
         onRefreshStaff={async () => {
           const res = await pullAllFromSupabase();
-          if (res.success && res.data?.staff && Array.isArray(res.data.staff)) {
+          if (res.success && res.data?.staff && Array.isArray(res.data.staff) && res.data.staff.length > 0) {
             setStaff(res.data.staff);
             return res.data.staff;
           }
-          return staff;
+          return [];
         }}
       />
     );

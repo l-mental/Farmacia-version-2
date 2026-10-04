@@ -384,7 +384,7 @@ const PosSystem: React.FC<PosSystemProps> = ({
               <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-50 border border-slate-200 rounded-xl">
                 <User className="w-3.5 h-3.5 text-slate-400" />
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cajero:</span>
-                <span className="font-bold text-slate-700">{currentUser?.name || 'Sonia Quispe'}</span>
+                <span className="font-bold text-slate-700">{currentUser?.name || 'Cajero'}</span>
               </div>
             </div>
           </div>

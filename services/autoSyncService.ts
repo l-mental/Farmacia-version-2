@@ -44,12 +44,18 @@ try {
 }
 
 export const getSyncRoom = (): string => {
-  return localStorage.getItem('FARMA_AUTO_SYNC_ROOM') || DEFAULT_SYNC_ROOM;
+  try {
+    return localStorage.getItem('FARMA_AUTO_SYNC_ROOM') || DEFAULT_SYNC_ROOM;
+  } catch {
+    return DEFAULT_SYNC_ROOM;
+  }
 };
 
 export const setSyncRoom = (roomName: string): string => {
   const clean = roomName.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-') || DEFAULT_SYNC_ROOM;
-  localStorage.setItem('FARMA_AUTO_SYNC_ROOM', clean);
+  try {
+    localStorage.setItem('FARMA_AUTO_SYNC_ROOM', clean);
+  } catch {}
   currentRoom = clean;
   return clean;
 };
