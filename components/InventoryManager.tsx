@@ -104,7 +104,7 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
     ? canUserEditInventory(currentUser) 
     : (currentUserRole === 'ADMIN' || currentUserRole === 'PHARMACIST');
 
-  // Excel import supporting bulk uploads of up to 2000+ items
+  // Excel import supporting 1 or 2 sheets (Por_Caja and Solo_Unidades) and differential 'Tipo' column
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!canManageInventory) {
       alert('Acceso restringido: Los cajeros no pueden manipular ni importar inventarios.');
@@ -118,55 +118,267 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
       try {
         const bstr = evt.target?.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws);
 
-        if (!data || data.length === 0) {
-          showToast('El archivo Excel no contiene filas de medicamentos.');
+        const importedMeds: Medication[] = [];
+        let rowCounter = 0;
+
+        wb.SheetNames.forEach((sheetName) => {
+          const ws = wb.Sheets[sheetName];
+          if (!ws) return;
+          const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+          if (!Array.isArray(rows) || rows.length === 0) return;
+
+          const lowerSheet = sheetName.toLowerCase();
+          const sheetIndicatesUnitOnly =
+            lowerSheet.includes('unidad') ||
+            lowerSheet.includes('suelto') ||
+            lowerSheet.includes('jarabe') ||
+            lowerSheet.includes('sin_caja') ||
+            lowerSheet.includes('sin caja');
+          const sheetIndicatesBox =
+            lowerSheet.includes('caja');
+
+          rows.forEach((row: any) => {
+            const rawName = String(
+              row['Nombre'] ||
+              row['NOMBRE'] ||
+              row['Medicamento'] ||
+              row['MEDICAMENTO'] ||
+              row['Producto'] ||
+              row['PRODUCTO'] ||
+              ''
+            ).trim();
+
+            // Ignorar filas en blanco
+            if (!rawName) return;
+
+            rowCounter++;
+
+            // Detectar diferencial por columna ('Tipo' / 'Presentación' / 'Modo') o por hoja o por columnas
+            const rawTipo = String(
+              row['Tipo'] ||
+              row['TIPO'] ||
+              row['Presentación'] ||
+              row['PRESENTACIÓN'] ||
+              row['Presentacion'] ||
+              row['Modo'] ||
+              row['MODO'] ||
+              ''
+            ).trim().toUpperCase();
+
+            let isUnitOnly = false;
+            if (
+              rawTipo.includes('UNIDAD') ||
+              rawTipo.includes('SUELTO') ||
+              rawTipo.includes('JARABE') ||
+              rawTipo.includes('FRASCO') ||
+              rawTipo.includes('SIN CAJA')
+            ) {
+              isUnitOnly = true;
+            } else if (rawTipo.includes('CAJA')) {
+              isUnitOnly = false;
+            } else if (sheetIndicatesUnitOnly && !sheetIndicatesBox) {
+              isUnitOnly = true;
+            } else if (sheetIndicatesBox) {
+              isUnitOnly = false;
+            } else {
+              // Hoja única sin columna 'Tipo' explícita: deducir por las columnas presentes o unidades por caja
+              const hasPrecioCaja = row['Precio Caja'] !== undefined && row['Precio Caja'] !== '';
+              const hasStockCajas = row['Stock Cajas'] !== undefined && row['Stock Cajas'] !== '';
+              const rawUnitsPerBox = parseInt(row['Unidades por Caja'] ?? row['Unidades x Caja'] ?? '');
+              const hasUnitColumns =
+                (row['Precio Unidad'] !== undefined && row['Precio Unidad'] !== '') ||
+                (row['Costo Unidad'] !== undefined && row['Costo Unidad'] !== '') ||
+                (row['Stock Unidades'] !== undefined && row['Stock Unidades'] !== '') ||
+                (row['Cantidad Unidades'] !== undefined && row['Cantidad Unidades'] !== '');
+
+              if (rawUnitsPerBox === 1 || (!hasPrecioCaja && !hasStockCajas && hasUnitColumns)) {
+                isUnitOnly = true;
+              } else if (isLikelyUnitOnlyName(rawName) && (!rawUnitsPerBox || rawUnitsPerBox === 1)) {
+                isUnitOnly = true;
+              }
+            }
+
+            const catValue = (row['Categoría'] || row['Categoria'] || row['CATEGORÍA'] || Category.OTHERS) as Category;
+            const lotNumber = String(row['Lote'] || row['LOTE'] || '').trim() || generateAutoLot();
+            const expiryDate = String(row['Vencimiento'] || row['VENCIMIENTO'] || '').trim() || getDatePlusYears(2);
+            const controlledRaw = String(row['Controlado'] || row['CONTROLADO'] || '').trim().toUpperCase();
+            const isControlled = controlledRaw === 'SI' || controlledRaw === 'SÍ' || controlledRaw === 'TRUE' || row['Controlado'] === true;
+
+            if (isUnitOnly) {
+              const stockUnits = Math.max(
+                0,
+                parseInt(
+                  row['Stock Unidades'] ??
+                  row['Cantidad Unidades'] ??
+                  row['Unidades'] ??
+                  row['Stock'] ??
+                  row['Stock Cajas'] ??
+                  '0'
+                ) || 0
+              );
+              const priceUnit = Math.max(
+                0,
+                parseFloat(
+                  row['Precio Unidad'] ??
+                  row['Precio Venta Unidad'] ??
+                  row['Precio'] ??
+                  row['Precio Caja'] ??
+                  '0'
+                ) || 0
+              );
+              const costPriceUnit = Math.max(
+                0,
+                parseFloat(
+                  row['Costo Unidad'] ??
+                  row['Costo Compra Unidad'] ??
+                  row['Costo'] ??
+                  row['Costo Caja'] ??
+                  '0'
+                ) || 0
+              );
+              const profitMarginPercent =
+                costPriceUnit > 0
+                  ? parseFloat((((priceUnit - costPriceUnit) / costPriceUnit) * 100).toFixed(1))
+                  : 0;
+
+              importedMeds.push({
+                id: `${Date.now()}_${rowCounter}_${Math.random().toString(36).substring(2, 6)}`,
+                name: rawName,
+                genericName: String(row['Nombre Genérico'] || row['Genérico'] || rawName).trim(),
+                laboratory: String(row['Laboratorio'] || row['LABORATORIO'] || '').trim(),
+                description: String(row['Descripción'] || row['Descripcion'] || '').trim(),
+                isUnitOnly: true,
+                costPriceBox: costPriceUnit,
+                costPriceUnit: costPriceUnit,
+                profitMarginPercent,
+                priceBox: priceUnit,
+                priceUnit: priceUnit,
+                unitsPerBox: 1,
+                category: catValue,
+                imageUrl: String(row['Imagen URL'] || '').trim() || getCategoryDefaultImage(catValue),
+                stockBoxes: stockUnits,
+                stockUnits: stockUnits,
+                isControlled,
+                minStock: parseInt(row['Stock Mínimo'] ?? row['Stock Minimo'] ?? '5') || 5,
+                maxStock: parseInt(row['Stock Máximo'] ?? row['Stock Maximo'] ?? '50') || 50,
+                batches: [
+                  {
+                    lotNumber,
+                    expiryDate,
+                    quantity: stockUnits
+                  }
+                ]
+              });
+            } else {
+              const unitsPerBox = Math.max(
+                1,
+                parseInt(row['Unidades por Caja'] ?? row['Unidades x Caja'] ?? '20') || 20
+              );
+              const hasStockBoxes = row['Stock Cajas'] !== undefined && row['Stock Cajas'] !== '';
+              const hasStockUnits = row['Stock Unidades'] !== undefined && row['Stock Unidades'] !== '';
+
+              let stockBoxes = parseInt(row['Stock Cajas'] ?? row['Cajas'] ?? '0') || 0;
+              let stockUnits = parseInt(row['Stock Unidades'] ?? '0') || 0;
+
+              if (hasStockBoxes && !hasStockUnits) {
+                stockUnits = stockBoxes * unitsPerBox;
+              } else if (!hasStockBoxes && hasStockUnits) {
+                stockBoxes = Math.floor(stockUnits / unitsPerBox);
+              } else if (!hasStockBoxes && !hasStockUnits) {
+                stockBoxes = parseInt(row['Stock'] ?? '0') || 0;
+                stockUnits = stockBoxes * unitsPerBox;
+              }
+
+              const priceBox = Math.max(
+                0,
+                parseFloat(row['Precio Caja'] ?? row['Precio'] ?? '0') || 0
+              );
+              const priceUnit =
+                row['Precio Unidad'] !== undefined && row['Precio Unidad'] !== ''
+                  ? parseFloat(row['Precio Unidad']) || parseFloat((priceBox / unitsPerBox).toFixed(2))
+                  : parseFloat((priceBox / unitsPerBox).toFixed(2));
+
+              const costPriceBox = Math.max(
+                0,
+                parseFloat(row['Costo Caja'] ?? row['Costo'] ?? '0') || 0
+              );
+              const costPriceUnit =
+                row['Costo Unidad'] !== undefined && row['Costo Unidad'] !== ''
+                  ? parseFloat(row['Costo Unidad']) || parseFloat((costPriceBox / unitsPerBox).toFixed(2))
+                  : parseFloat((costPriceBox / unitsPerBox).toFixed(2));
+
+              const profitMarginPercent =
+                costPriceBox > 0
+                  ? parseFloat((((priceBox - costPriceBox) / costPriceBox) * 100).toFixed(1))
+                  : 0;
+
+              importedMeds.push({
+                id: `${Date.now()}_${rowCounter}_${Math.random().toString(36).substring(2, 6)}`,
+                name: rawName,
+                genericName: String(row['Nombre Genérico'] || row['Genérico'] || rawName).trim(),
+                laboratory: String(row['Laboratorio'] || row['LABORATORIO'] || '').trim(),
+                description: String(row['Descripción'] || row['Descripcion'] || '').trim(),
+                isUnitOnly: false,
+                costPriceBox,
+                costPriceUnit,
+                profitMarginPercent,
+                priceBox,
+                priceUnit,
+                unitsPerBox,
+                category: catValue,
+                imageUrl: String(row['Imagen URL'] || '').trim() || getCategoryDefaultImage(catValue),
+                stockBoxes,
+                stockUnits,
+                isControlled,
+                minStock: parseInt(row['Stock Mínimo'] ?? row['Stock Minimo'] ?? '5') || 5,
+                maxStock: parseInt(row['Stock Máximo'] ?? row['Stock Maximo'] ?? '50') || 50,
+                batches: [
+                  {
+                    lotNumber,
+                    expiryDate,
+                    quantity: stockUnits
+                  }
+                ]
+              });
+            }
+          });
+        });
+
+        if (importedMeds.length === 0) {
+          showToast('El archivo Excel no contiene filas válidas con Nombre de medicamento.');
           return;
         }
 
-        const newMeds: Medication[] = data.map((row: any, idx: number) => {
-          const priceBox = parseFloat(row['Precio Caja']) || 0;
-          const unitsPerBox = parseInt(row['Unidades por Caja']) || 1;
-          const stockBoxes = parseInt(row['Stock Cajas']) || 0;
-          const stockUnits = stockBoxes * unitsPerBox;
+        const boxCount = importedMeds.filter(m => !m.isUnitOnly).length;
+        const unitCount = importedMeds.filter(m => m.isUnitOnly).length;
 
-          return {
-            id: (Date.now() + idx).toString() + Math.random().toString(36).substr(2, 6),
-            name: row['Nombre'] || 'Sin Nombre',
-            genericName: row['Nombre Genérico'] || '',
-            laboratory: row['Laboratorio'] || '',
-            description: row['Descripción'] || '',
-            priceBox: priceBox,
-            priceUnit: parseFloat((priceBox / unitsPerBox).toFixed(2)),
-            unitsPerBox: unitsPerBox,
-            category: (row['Categoría'] as Category) || Category.OTHERS,
-            imageUrl: row['Imagen URL'] || getCategoryDefaultImage((row['Categoría'] as Category) || Category.OTHERS),
-            stockBoxes: stockBoxes,
-            stockUnits: stockUnits,
-            isControlled: row['Controlado'] === 'SI' || row['Controlado'] === true,
-            minStock: parseInt(row['Stock Mínimo']) || 5,
-            maxStock: parseInt(row['Stock Máximo']) || 50,
-            batches: [
-              {
-                lotNumber: row['Lote'] || generateAutoLot(),
-                expiryDate: row['Vencimiento'] || getDatePlusYears(2),
-                quantity: stockUnits
-              }
-            ]
-          };
-        });
-
-        if (onBatchAdd) {
-          onBatchAdd(newMeds);
+        // Si ya existen medicamentos con el mismo nombre, actualizar sus datos y agregar los nuevos
+        if (onReplaceAll && medications.length > 0) {
+          const mergedMap = new Map<string, Medication>();
+          medications.forEach(existing => {
+            mergedMap.set(existing.name.trim().toLowerCase(), existing);
+          });
+          importedMeds.forEach(inc => {
+            const key = inc.name.trim().toLowerCase();
+            const existing = mergedMap.get(key);
+            if (existing) {
+              mergedMap.set(key, { ...inc, id: existing.id });
+            } else {
+              mergedMap.set(key, inc);
+            }
+          });
+          onReplaceAll(Array.from(mergedMap.values()));
+        } else if (onBatchAdd) {
+          onBatchAdd(importedMeds);
         } else {
-          newMeds.forEach(m => onAdd(m));
+          importedMeds.forEach(m => onAdd(m));
         }
-        
+
         if (fileInputRef.current) fileInputRef.current.value = '';
-        showToast(`¡Éxito! ${newMeds.length} productos procesados e integrados al catálogo.`);
+        showToast(
+          `¡Importación exitosa! ${importedMeds.length} productos cargados (${boxCount} por caja, ${unitCount} por unidad).`
+        );
       } catch (err) {
         console.error(err);
         showToast('Error al procesar el archivo Excel. Verifique el formato.');
@@ -175,29 +387,120 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
     reader.readAsBinaryString(file);
   };
 
+  // Descargar Plantilla / Inventario completo separado en 2 hojas: "Por_Caja" y "Solo_Unidades"
   const downloadTemplate = () => {
-    const template = [
-      {
-        'Nombre': 'Paracetamol 500mg',
-        'Nombre Genérico': 'Acetaminofén',
-        'Laboratorio': 'Genfar',
-        'Descripción': 'Analgésico y antipirético',
-        'Precio Caja': 25.00,
-        'Unidades por Caja': 20,
-        'Stock Cajas': 10,
-        'Categoría': 'Analgésicos',
-        'Controlado': 'NO',
-        'Stock Mínimo': 5,
-        'Stock Máximo': 50,
-        'Lote': 'LOT-26-A101',
-        'Vencimiento': getDatePlusYears(2),
-        'Imagen URL': ''
-      }
+    const boxMeds = medications.filter(m => !m.isUnitOnly && m.unitsPerBox > 1);
+    const unitMeds = medications.filter(m => m.isUnitOnly || m.unitsPerBox === 1);
+
+    // Hoja 1: Medicamentos Por Caja
+    const boxSheetRows =
+      boxMeds.length > 0
+        ? boxMeds.map(m => ({
+            'Tipo': 'CAJA',
+            'Nombre': m.name,
+            'Nombre Genérico': m.genericName || '',
+            'Laboratorio': m.laboratory || '',
+            'Categoría': m.category || Category.OTHERS,
+            'Costo Caja': m.costPriceBox ?? 0,
+            'Precio Caja': m.priceBox,
+            'Precio Unidad': m.priceUnit,
+            'Unidades por Caja': m.unitsPerBox,
+            'Stock Cajas': m.stockBoxes,
+            'Stock Unidades': m.stockUnits,
+            'Stock Mínimo': m.minStock,
+            'Stock Máximo': m.maxStock || 50,
+            'Lote': m.batches[0]?.lotNumber || '',
+            'Vencimiento': m.batches[0]?.expiryDate || '',
+            'Controlado': m.isControlled ? 'SI' : 'NO',
+            'Descripción': m.description || '',
+            'Imagen URL': m.imageUrl || ''
+          }))
+        : [
+            {
+              'Tipo': 'CAJA',
+              'Nombre': '',
+              'Nombre Genérico': '',
+              'Laboratorio': '',
+              'Categoría': 'Otros',
+              'Costo Caja': 0,
+              'Precio Caja': 0,
+              'Precio Unidad': 0,
+              'Unidades por Caja': 20,
+              'Stock Cajas': 0,
+              'Stock Unidades': 0,
+              'Stock Mínimo': 5,
+              'Stock Máximo': 50,
+              'Lote': generateAutoLot(),
+              'Vencimiento': getDatePlusYears(2),
+              'Controlado': 'NO',
+              'Descripción': '',
+              'Imagen URL': ''
+            }
+          ];
+
+    // Hoja 2: Medicamentos Solo por Unidad (Jarabes, Frascos, Sueltos sin Caja)
+    const unitSheetRows =
+      unitMeds.length > 0
+        ? unitMeds.map(m => ({
+            'Tipo': 'UNIDAD',
+            'Nombre': m.name,
+            'Nombre Genérico': m.genericName || '',
+            'Laboratorio': m.laboratory || '',
+            'Categoría': m.category || Category.OTHERS,
+            'Costo Unidad': m.costPriceUnit ?? m.costPriceBox ?? 0,
+            'Precio Unidad': m.priceUnit || m.priceBox,
+            'Stock Unidades': m.stockUnits,
+            'Stock Mínimo': m.minStock,
+            'Stock Máximo': m.maxStock || 50,
+            'Lote': m.batches[0]?.lotNumber || '',
+            'Vencimiento': m.batches[0]?.expiryDate || '',
+            'Controlado': m.isControlled ? 'SI' : 'NO',
+            'Descripción': m.description || '',
+            'Imagen URL': m.imageUrl || ''
+          }))
+        : [
+            {
+              'Tipo': 'UNIDAD',
+              'Nombre': '',
+              'Nombre Genérico': '',
+              'Laboratorio': '',
+              'Categoría': 'Otros',
+              'Costo Unidad': 0,
+              'Precio Unidad': 0,
+              'Stock Unidades': 0,
+              'Stock Mínimo': 5,
+              'Stock Máximo': 50,
+              'Lote': generateAutoLot(),
+              'Vencimiento': getDatePlusYears(2),
+              'Controlado': 'NO',
+              'Descripción': '',
+              'Imagen URL': ''
+            }
+          ];
+
+    const wsBoxes = XLSX.utils.json_to_sheet(boxSheetRows);
+    const wsUnits = XLSX.utils.json_to_sheet(unitSheetRows);
+
+    wsBoxes['!cols'] = [
+      { wch: 10 }, { wch: 28 }, { wch: 22 }, { wch: 18 }, { wch: 15 },
+      { wch: 12 }, { wch: 12 }, { wch: 13 }, { wch: 18 }, { wch: 12 },
+      { wch: 15 }, { wch: 13 }, { wch: 13 }, { wch: 15 }, { wch: 14 },
+      { wch: 12 }, { wch: 25 }, { wch: 25 }
     ];
-    const ws = XLSX.utils.json_to_sheet(template);
+
+    wsUnits['!cols'] = [
+      { wch: 10 }, { wch: 28 }, { wch: 22 }, { wch: 18 }, { wch: 15 },
+      { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 13 }, { wch: 13 },
+      { wch: 15 }, { wch: 14 }, { wch: 12 }, { wch: 25 }, { wch: 25 }
+    ];
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Plantilla");
-    XLSX.writeFile(wb, "Plantilla_Inventario.xlsx");
+    XLSX.utils.book_append_sheet(wb, wsBoxes, 'Por_Caja');
+    XLSX.utils.book_append_sheet(wb, wsUnits, 'Solo_Unidades');
+    XLSX.writeFile(wb, 'Plantilla_Inventario_Farmacia.xlsx');
+    showToast(
+      `Plantilla descargada con 2 hojas: "Por_Caja" (${boxMeds.length} prod.) y "Solo_Unidades" (${unitMeds.length} prod.).`
+    );
   };
 
   // Form State for Modal
