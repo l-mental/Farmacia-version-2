@@ -101,7 +101,8 @@ export interface Medication {
   priceUnit: number;
   costPriceBox?: number; // Precio de compra / costo por caja
   costPriceUnit?: number; // Precio de costo por unidad suelta
-  profitMarginPercent?: number; // Porcentaje de ganancia (%)
+  profitMarginPercent?: number; // Porcentaje de ganancia por caja (%)
+  profitMarginUnitPercent?: number; // Porcentaje de ganancia por unidad (%)
   unitsPerBox: number;
   isUnitOnly?: boolean; // Si es true, se maneja solo por unidades sueltas (ej. jarabes, frascos, unidades individuales sin caja)
   category: Category;
