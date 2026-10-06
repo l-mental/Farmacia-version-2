@@ -18,8 +18,17 @@ const Dashboard: React.FC<DashboardProps> = ({ medications, currencySymbol, sale
   const today = new Date().getTime();
 
   // Stock Alerts
-  const lowStock = medications.filter(m => m.stockBoxes <= m.minStock);
-  const overStock = medications.filter(m => m.maxStock && m.stockBoxes >= m.maxStock);
+  const lowStock = medications.filter(m => {
+    const isUnit = m.isUnitOnly || m.unitsPerBox === 1;
+    const current = isUnit ? (m.stockUnits ?? m.stockBoxes ?? 0) : (m.stockBoxes ?? 0);
+    return current <= (m.minStock ?? 0);
+  });
+  const overStock = medications.filter(m => {
+    if (!m.maxStock) return false;
+    const isUnit = m.isUnitOnly || m.unitsPerBox === 1;
+    const current = isUnit ? (m.stockUnits ?? m.stockBoxes ?? 0) : (m.stockBoxes ?? 0);
+    return current >= m.maxStock;
+  });
 
   const getDaysUntilExpiry = (expiryDate?: string): number | null => {
     if (!expiryDate) return null;
@@ -210,20 +219,26 @@ const Dashboard: React.FC<DashboardProps> = ({ medications, currencySymbol, sale
           </div>
 
           <div className="space-y-2">
-            {lowStock.length > 0 ? lowStock.map(med => (
+            {lowStock.length > 0 ? lowStock.map(med => {
+              const isUnit = med.isUnitOnly || med.unitsPerBox === 1;
+              const current = isUnit ? (med.stockUnits ?? med.stockBoxes ?? 0) : (med.stockBoxes ?? 0);
+              const unitShort = isUnit ? 'uds' : 'cjs';
+              const unitFull = isUnit ? 'Unidades' : 'Cajas';
+              return (
               <div key={med.id} className="flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100/80 rounded-xl transition-colors">
                 <div className="min-w-0 flex-1 pr-3">
                   <p className="font-bold text-slate-800 text-xs truncate uppercase">{med.name}</p>
                   <p className="text-[9px] text-slate-400 uppercase font-semibold">
-                    Genérico: {med.genericName || 'N/A'} • Mínimo: {med.minStock} cjs
+                    Genérico: {med.genericName || 'N/A'} • Mínimo: {med.minStock} {unitShort}
                   </p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-xs font-black text-rose-600">{med.stockBoxes} Cajas</p>
-                  <p className="text-[9px] font-bold text-slate-400">{med.stockUnits} Uds</p>
+                  <p className="text-xs font-black text-rose-600">{current} {unitFull}</p>
+                  {!isUnit && <p className="text-[9px] font-bold text-slate-400">{med.stockUnits} Uds</p>}
                 </div>
               </div>
-            )) : <p className="text-center text-slate-400 py-4 italic text-xs">Todos los productos sobre el stock mínimo.</p>}
+              );
+            }) : <p className="text-center text-slate-400 py-4 italic text-xs">Todos los productos sobre el stock mínimo.</p>}
           </div>
         </div>
 
@@ -240,20 +255,26 @@ const Dashboard: React.FC<DashboardProps> = ({ medications, currencySymbol, sale
           </div>
 
           <div className="space-y-2">
-            {overStock.length > 0 ? overStock.map(med => (
+            {overStock.length > 0 ? overStock.map(med => {
+              const isUnit = med.isUnitOnly || med.unitsPerBox === 1;
+              const current = isUnit ? (med.stockUnits ?? med.stockBoxes ?? 0) : (med.stockBoxes ?? 0);
+              const unitShort = isUnit ? 'uds' : 'cjs';
+              const unitFull = isUnit ? 'Unidades' : 'Cajas';
+              return (
               <div key={med.id} className="flex items-center justify-between p-3 bg-purple-50/40 rounded-xl">
                 <div className="min-w-0 flex-1 pr-3">
                   <p className="font-bold text-slate-800 text-xs truncate uppercase">{med.name}</p>
                   <p className="text-[9px] text-purple-700/80 uppercase font-semibold">
-                    Genérico: {med.genericName || 'N/A'} • Máx Configurado: {med.maxStock} cjs
+                    Genérico: {med.genericName || 'N/A'} • Máx Configurado: {med.maxStock} {unitShort}
                   </p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-xs font-black text-purple-700">{med.stockBoxes} Cajas</p>
+                  <p className="text-xs font-black text-purple-700">{current} {unitFull}</p>
                   <span className="text-[8px] font-black bg-purple-200/80 text-purple-900 px-1 rounded">SOBRESTOCK</span>
                 </div>
               </div>
-            )) : <p className="text-center text-slate-400 py-4 italic text-xs">Ningún producto excede el stock máximo fijado.</p>}
+              );
+            }) : <p className="text-center text-slate-400 py-4 italic text-xs">Ningún producto excede el stock máximo fijado.</p>}
           </div>
         </div>
       </div>

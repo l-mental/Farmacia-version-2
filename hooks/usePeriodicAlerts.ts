@@ -44,11 +44,17 @@ export const usePeriodicAlerts = (medications: Medication[]) => {
     return perm;
   }, []);
 
+  const prevAlertSignatureRef = useRef<string>('');
+
   // Compute alert-worthy items
   const getAlertItems = useCallback(() => {
     const now = Date.now();
     const safeMeds = Array.isArray(medications) ? medications.filter(Boolean) : [];
-    const lowStock = safeMeds.filter(m => (m.stockBoxes ?? 0) <= (m.minStock ?? 0));
+    const lowStock = safeMeds.filter(m => {
+      const isUnit = m.isUnitOnly || m.unitsPerBox === 1;
+      const current = isUnit ? (m.stockUnits ?? m.stockBoxes ?? 0) : (m.stockBoxes ?? 0);
+      return current <= (m.minStock ?? 0);
+    });
     const expired = safeMeds.filter(m => {
       const exp = m.batches?.[0]?.expiryDate;
       if (!exp) return false;
@@ -60,9 +66,12 @@ export const usePeriodicAlerts = (medications: Medication[]) => {
 
     if (settings.notifyLowStock) {
       lowStock.forEach(m => {
+        const isUnit = m.isUnitOnly || m.unitsPerBox === 1;
+        const current = isUnit ? (m.stockUnits ?? m.stockBoxes ?? 0) : (m.stockBoxes ?? 0);
+        const unitLabel = isUnit ? 'unidades' : 'cajas';
         items.push({
           name: m.name || 'Producto',
-          detail: `Stock crítico: ${m.stockBoxes ?? 0} cajas (Mínimo: ${m.minStock ?? 0})`,
+          detail: `Stock crítico: ${current} ${unitLabel} (Mínimo: ${m.minStock ?? 0} ${unitLabel})`,
           type: 'LOW_STOCK'
         });
       });
@@ -129,6 +138,21 @@ export const usePeriodicAlerts = (medications: Medication[]) => {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     });
   }, [getAlertItems, settings.soundEnabled, settings.vibrationEnabled]);
+
+  // Immediate trigger when a new medication falls into low stock or minStock is updated to trigger low stock
+  useEffect(() => {
+    if (!settings.enabled) return;
+    const { lowStock, expired, items } = getAlertItems();
+    const signature = [
+      ...lowStock.map(m => `L:${m.id}:${m.isUnitOnly || m.unitsPerBox === 1 ? (m.stockUnits ?? m.stockBoxes ?? 0) : (m.stockBoxes ?? 0)}:${m.minStock ?? 0}`),
+      ...expired.map(m => `E:${m.id}`)
+    ].join('|');
+
+    if (prevAlertSignatureRef.current && signature !== prevAlertSignatureRef.current && items.length > 0) {
+      fireAlert(false);
+    }
+    prevAlertSignatureRef.current = signature;
+  }, [medications, settings.enabled, getAlertItems, fireAlert]);
 
   // Periodic interval (e.g. every 5 minutes)
   useEffect(() => {

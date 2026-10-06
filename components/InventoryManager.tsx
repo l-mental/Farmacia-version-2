@@ -88,6 +88,8 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
   const [quickPriceUnit, setQuickPriceUnit] = useState<number | ''>(1.5);
   const [quickBoxes, setQuickBoxes] = useState<number | ''>(10);
   const [quickUnitsPerBox, setQuickUnitsPerBox] = useState<number>(20);
+  const [quickMinStock, setQuickMinStock] = useState<number | ''>(5);
+  const [quickMaxStock, setQuickMaxStock] = useState<number | ''>(50);
   const [quickLot, setQuickLot] = useState<string>(() => generateAutoLot());
   const [quickExpiry, setQuickExpiry] = useState<string>(() => getDatePlusYears(2));
   const [quickSuggestionsOpen, setQuickSuggestionsOpen] = useState(false);
@@ -736,11 +738,28 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
     return { label: 'S/F', color: 'bg-slate-300', badgeClass: 'bg-slate-100 text-slate-500 border-slate-200', detail: 'Sin fecha' };
   };
 
+  // Helper for accurate Low Stock & Over Stock detection (works for both Box and Unit-only items)
+  const isMedUnderMinStock = (m: Medication): boolean => {
+    const min = m.minStock ?? 0;
+    if (m.isUnitOnly || m.unitsPerBox === 1) {
+      return (m.stockUnits ?? m.stockBoxes ?? 0) <= min;
+    }
+    return (m.stockBoxes ?? 0) <= min || (m.stockUnits ?? 0) <= min * (m.unitsPerBox || 1);
+  };
+
+  const isMedOverMaxStock = (m: Medication): boolean => {
+    if (!m.maxStock) return false;
+    if (m.isUnitOnly || m.unitsPerBox === 1) {
+      return (m.stockUnits ?? m.stockBoxes ?? 0) >= m.maxStock;
+    }
+    return (m.stockBoxes ?? 0) >= m.maxStock;
+  };
+
   // Alert Counts
   const expiredCount = medications.filter(m => getExpiryCategory(m.batches[0]?.expiryDate) === 'EXPIRED').length;
   const shortCount = medications.filter(m => getExpiryCategory(m.batches[0]?.expiryDate) === 'SHORT').length;
-  const minStockCount = medications.filter(m => m.stockBoxes <= m.minStock).length;
-  const maxStockCount = medications.filter(m => m.maxStock && m.stockBoxes >= m.maxStock).length;
+  const minStockCount = medications.filter(m => isMedUnderMinStock(m)).length;
+  const maxStockCount = medications.filter(m => isMedOverMaxStock(m)).length;
 
   const filtered = medications.filter(m => {
     const matchesSearch = 
@@ -754,8 +773,8 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
     if (filterType === 'EXPIRED') return expCat === 'EXPIRED';
     if (filterType === 'SHORT') return expCat === 'SHORT';
     if (filterType === 'LONG') return expCat === 'LONG';
-    if (filterType === 'MIN_STOCK') return m.stockBoxes <= m.minStock;
-    if (filterType === 'MAX_STOCK') return m.maxStock && m.stockBoxes >= m.maxStock;
+    if (filterType === 'MIN_STOCK') return isMedUnderMinStock(m);
+    if (filterType === 'MAX_STOCK') return isMedOverMaxStock(m);
 
     return true;
   });
@@ -823,7 +842,7 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
       stockBoxes: unitOnlyMode ? 8 : 10,
       stockUnits: unitOnlyMode ? 8 : 200,
       isControlled: false,
-      minStock: 5,
+      minStock: unitOnlyMode ? 3 : 5,
       maxStock: 50,
       batches: [{ lotNumber: generateAutoLot(), expiryDate: getDatePlusYears(2), quantity: unitOnlyMode ? 8 : 200 }]
     });
@@ -1068,7 +1087,7 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
       stockBoxes: keepUnitOnly ? 20 : 10,
       stockUnits: keepUnitOnly ? 20 : 200,
       isControlled: false,
-      minStock: 5,
+      minStock: keepUnitOnly ? 3 : 5,
       maxStock: 50,
       batches: [{ lotNumber: generateAutoLot(), expiryDate: getDatePlusYears(2), quantity: keepUnitOnly ? 20 : 200 }]
     });
@@ -1153,8 +1172,8 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
         stockBoxes: boxes,
         stockUnits: units,
         isControlled: preset?.isControlled || false,
-        minStock: 5,
-        maxStock: 50,
+        minStock: typeof quickMinStock === 'number' && quickMinStock >= 0 ? quickMinStock : (isUnitOnly ? 3 : 5),
+        maxStock: typeof quickMaxStock === 'number' && quickMaxStock > 0 ? quickMaxStock : 50,
         batches: [
           {
             lotNumber: lot,
@@ -1606,6 +1625,30 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                       </div>
                     </>
                   )}
+                  <div className="flex items-center gap-1 bg-orange-50 border border-orange-300 rounded-lg px-2 py-0.5" title="Cuando el stock llegue o baje de este número, sonará la alarma de Bajo Stock">
+                    <span className="text-[10px] font-black text-orange-800">
+                      ⚠️ Stock Mín ({quickIsUnitOnly ? 'Uds' : 'Cajas'}):
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={quickMinStock}
+                      onChange={(e) => setQuickMinStock(e.target.value === '' ? '' : Math.max(0, parseInt(e.target.value) || 0))}
+                      className="w-11 text-[10px] font-black text-orange-900 bg-transparent outline-none text-center"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-0.5" title="Stock máximo sugerido">
+                    <span className="text-[10px] font-bold text-slate-500">
+                      Máx ({quickIsUnitOnly ? 'Uds' : 'Cajas'}):
+                    </span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={quickMaxStock}
+                      onChange={(e) => setQuickMaxStock(e.target.value === '' ? '' : Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-11 text-[10px] font-black text-slate-700 bg-transparent outline-none text-center"
+                    />
+                  </div>
                   <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-0.5">
                     <span className="text-[10px] font-bold text-slate-500">Lote:</span>
                     <input
@@ -1861,8 +1904,8 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
           ) : (
             paginatedMeds.map(med => {
               const expiryInfo = getExpiryStatus(med.batches[0]?.expiryDate || '');
-              const isUnderMin = med.stockBoxes <= med.minStock;
-              const isOverMax = med.maxStock ? med.stockBoxes >= med.maxStock : false;
+              const isUnderMin = isMedUnderMinStock(med);
+              const isOverMax = isMedOverMaxStock(med);
 
               return (
                 <div 
@@ -1961,7 +2004,7 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                       );
                     })()}
 
-                    {/* 3. Stock Actual */}
+                    {/* 3. Stock Actual & Stock Mínimo */}
                     <div>
                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Stock Actual</span>
                       <div className="flex items-center md:justify-end gap-1.5">
@@ -1971,6 +2014,9 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                       </div>
                       <span className="text-[9px] font-bold text-slate-400 block">
                         {med.isUnitOnly || med.unitsPerBox === 1 ? '(Unidades individuales)' : `(${med.stockUnits} unidades)`}
+                      </span>
+                      <span className={`text-[9px] font-black block mt-0.5 ${isUnderMin ? 'text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 inline-block' : 'text-orange-600'}`}>
+                        {isUnderMin ? '⚠️ ' : ''}Mínimo: {med.minStock ?? 0} {med.isUnitOnly || med.unitsPerBox === 1 ? 'uds' : 'cajas'}
                       </span>
                     </div>
 
@@ -2269,34 +2315,94 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                         </span>
                       </div>
 
-                      {/* SI COMPRÓ POR UNIDAD (EJ: 8 JARABES): Poner primero la cantidad de unidades y luego costo/precio unitario */}
+                      {/* SI COMPRÓ POR UNIDAD (EJ: 8 JARABES): Poner primero la cantidad de unidades, stock mínimo para alarma y luego costo/precio unitario */}
                       {formData.isUnitOnly ? (
                         <div className="space-y-3">
-                          <div className="bg-white p-3 rounded-xl border-2 border-blue-400 shadow-sm">
-                            <label className="text-xs font-black text-blue-800 uppercase tracking-wider block mb-1">
-                              ¿Cuántas Unidades Compraste? (Ej: 8 jarabes / unidades) *
-                            </label>
-                            <div className="relative">
-                              <input
-                                type="number"
-                                min="1"
-                                required
-                                value={formData.stockUnits ?? formData.stockBoxes ?? ''}
-                                onChange={(e) => {
-                                  const unitsQty = parseInt(e.target.value) || 0;
-                                  setFormData({
-                                    ...formData,
-                                    unitsPerBox: 1,
-                                    stockBoxes: unitsQty,
-                                    stockUnits: unitsQty
-                                  });
-                                }}
-                                className="w-full px-3 py-2.5 bg-blue-50/30 border border-blue-300 rounded-xl text-base font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
-                                placeholder="Ej: 8"
-                              />
-                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-blue-700">
-                                unidades (sin caja)
-                              </span>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white p-3 rounded-xl border-2 border-blue-400 shadow-sm">
+                            <div>
+                              <label className="text-[10px] font-black text-blue-800 uppercase tracking-wider block mb-1">
+                                ¿Cuántas Unidades Compraste? *
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  required
+                                  value={formData.stockUnits ?? formData.stockBoxes ?? ''}
+                                  onChange={(e) => {
+                                    const unitsQty = parseInt(e.target.value) || 0;
+                                    setFormData({
+                                      ...formData,
+                                      unitsPerBox: 1,
+                                      stockBoxes: unitsQty,
+                                      stockUnits: unitsQty
+                                    });
+                                  }}
+                                  className="w-full px-3 py-2 bg-blue-50/30 border border-blue-300 rounded-xl text-sm font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+                                  placeholder="Ej: 8"
+                                />
+                                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-black text-blue-700">
+                                  uds
+                                </span>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] font-black text-orange-700 uppercase tracking-wider block mb-1">
+                                ⚠️ Stock Mínimo (Alarma Uds) *
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  required
+                                  value={formData.minStock ?? 3}
+                                  onChange={(e) => {
+                                    const minVal = e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value) || 0);
+                                    setFormData({
+                                      ...formData,
+                                      minStock: minVal
+                                    });
+                                  }}
+                                  className="w-full px-3 py-2 bg-orange-50/60 border-2 border-orange-300 rounded-xl text-sm font-black text-orange-950 outline-none focus:ring-2 focus:ring-orange-500"
+                                  placeholder="Ej: 3"
+                                />
+                                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-orange-700">
+                                  uds mín.
+                                </span>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">
+                                Stock Máximo (Unidades)
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={formData.maxStock ?? 50}
+                                  onChange={(e) => {
+                                    const maxVal = e.target.value === '' ? 50 : Math.max(1, parseInt(e.target.value) || 1);
+                                    setFormData({
+                                      ...formData,
+                                      maxStock: maxVal
+                                    });
+                                  }}
+                                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                                  placeholder="50"
+                                />
+                                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
+                                  uds máx.
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="sm:col-span-3 flex items-center justify-between text-[11px] bg-orange-50 text-orange-900 px-3 py-1.5 rounded-lg border border-orange-200 font-bold">
+                              <span>🔔 Alarma de Bajo Stock: sonará cuando queden <strong>{formData.minStock ?? 3} unidades</strong> o menos.</span>
+                              {(formData.stockUnits ?? 0) <= (formData.minStock ?? 3) && (
+                                <span className="text-rose-600 font-black">⚠️ Stock actual en nivel de alarma</span>
+                              )}
                             </div>
                           </div>
 
@@ -2398,8 +2504,8 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                         </div>
                       ) : (
                         <div className="space-y-3">
-                          {/* FILA 1: CANTIDAD DE CAJAS Y UNIDADES POR CAJA */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-white p-3 rounded-xl border border-slate-200">
+                          {/* FILA 1: CANTIDAD DE CAJAS, UNIDADES POR CAJA Y STOCK MÍNIMO PARA ALARMA */}
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-3 rounded-xl border border-slate-200">
                             <div>
                               <label className="text-[10px] font-black text-slate-600 uppercase tracking-wider block mb-1">
                                 Cajas que Ingresan *
@@ -2447,6 +2553,53 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                                 }}
                                 className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
                               />
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] font-black text-orange-700 uppercase tracking-wider block mb-1">
+                                ⚠️ Stock Mínimo (Cajas) *
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                required
+                                value={formData.minStock ?? 5}
+                                onChange={(e) => {
+                                  const minVal = e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value) || 0);
+                                  setFormData({
+                                    ...formData,
+                                    minStock: minVal
+                                  });
+                                }}
+                                className="w-full px-3 py-2 bg-orange-50/60 border-2 border-orange-300 rounded-xl text-sm font-black text-orange-950 outline-none focus:ring-2 focus:ring-orange-500"
+                                title="Cuando queden esta cantidad de cajas o menos, sonará la alarma de Bajo Stock"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">
+                                Stock Máximo (Cajas)
+                              </label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={formData.maxStock ?? 50}
+                                onChange={(e) => {
+                                  const maxVal = e.target.value === '' ? 50 : Math.max(1, parseInt(e.target.value) || 1);
+                                  setFormData({
+                                    ...formData,
+                                    maxStock: maxVal
+                                  });
+                                }}
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-emerald-500"
+                              />
+                            </div>
+
+                            <div className="col-span-2 sm:col-span-4 flex flex-wrap items-center justify-between text-[11px] bg-orange-50 text-orange-900 px-3 py-1.5 rounded-lg border border-orange-200 font-bold">
+                              <span>🔔 Alarma de Bajo Stock: sonará cuando queden <strong>{formData.minStock ?? 5} cajas</strong> ({(formData.minStock ?? 5) * (formData.unitsPerBox || 20)} unidades) o menos.</span>
+                              {(formData.stockBoxes ?? 0) <= (formData.minStock ?? 5) && (
+                                <span className="text-rose-600 font-black">⚠️ Stock actual en nivel de alarma</span>
+                              )}
                             </div>
                           </div>
 
@@ -2813,74 +2966,98 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                     </div>
 
                     {formData.isUnitOnly ? (
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-blue-50/40 p-3 rounded-xl border border-blue-200">
-                        <InputGroup 
-                          label="Unidades Compradas (Ej: 8)" 
-                          type="number" 
-                          value={(formData.stockUnits ?? formData.stockBoxes)?.toString()} 
-                          onChange={v => {
-                            const uQty = parseInt(v) || 0;
-                            setFormData({ ...formData, unitsPerBox: 1, stockBoxes: uQty, stockUnits: uQty });
-                          }} 
-                        />
-                        <InputGroup 
-                          label={`Costo x 1 Unidad (${currencySymbol})`} 
-                          type="number" 
-                          step="0.1" 
-                          value={formData.costPriceBox?.toString() || ''} 
-                          onChange={v => {
-                            const cost = parseFloat(v) || 0;
-                            const profit = formData.profitMarginPercent ?? 40;
-                            const pu = parseFloat((cost * (1 + profit / 100)).toFixed(2));
-                            setFormData({ 
-                              ...formData, 
-                              costPriceBox: cost, 
-                              costPriceUnit: cost,
-                              priceBox: pu, 
-                              priceUnit: pu 
-                            });
-                          }} 
-                        />
-                        <InputGroup 
-                          label="% Ganancia" 
-                          type="number" 
-                          step="1" 
-                          value={formData.profitMarginPercent?.toString() || ''} 
-                          onChange={v => {
-                            const profit = parseFloat(v) || 0;
-                            const cost = formData.costPriceBox || 0;
-                            const pu = parseFloat((cost * (1 + profit / 100)).toFixed(2));
-                            setFormData({ 
-                              ...formData, 
-                              profitMarginPercent: profit, 
-                              priceBox: pu, 
-                              priceUnit: pu 
-                            });
-                          }} 
-                        />
-                        <InputGroup 
-                          label={`Precio Venta x 1 Ud (${currencySymbol})`} 
-                          type="number" 
-                          step="0.01" 
-                          value={formData.priceBox?.toString() || ''} 
-                          onChange={v => {
-                            const pu = parseFloat(v) || 0;
-                            const cost = formData.costPriceBox || 0;
-                            const profit = cost > 0 ? parseFloat((((pu - cost) / cost) * 100).toFixed(1)) : 0;
-                            setFormData({ 
-                              ...formData, 
-                              priceBox: pu, 
-                              priceUnit: pu,
-                              profitMarginPercent: profit
-                            });
-                          }} 
-                        />
+                      <div className="space-y-3 bg-blue-50/40 p-3 rounded-xl border border-blue-200">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          <InputGroup 
+                            label="Unidades Compradas (Ej: 8) *" 
+                            type="number" 
+                            value={(formData.stockUnits ?? formData.stockBoxes)?.toString()} 
+                            onChange={v => {
+                              const uQty = parseInt(v) || 0;
+                              setFormData({ ...formData, unitsPerBox: 1, stockBoxes: uQty, stockUnits: uQty });
+                            }} 
+                          />
+                          <InputGroup 
+                            label="⚠️ Stock Mínimo (Unidades Alarma) *" 
+                            type="number" 
+                            value={(formData.minStock ?? 3).toString()} 
+                            onChange={v => {
+                              const minVal = v === '' ? 0 : Math.max(0, parseInt(v) || 0);
+                              setFormData({ ...formData, minStock: minVal });
+                            }} 
+                          />
+                          <InputGroup 
+                            label="Stock Máximo (Unidades)" 
+                            type="number" 
+                            value={(formData.maxStock ?? 50).toString()} 
+                            onChange={v => {
+                              const maxVal = v === '' ? 50 : Math.max(1, parseInt(v) || 1);
+                              setFormData({ ...formData, maxStock: maxVal });
+                            }} 
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-blue-200/60">
+                          <InputGroup 
+                            label={`Costo x 1 Unidad (${currencySymbol})`} 
+                            type="number" 
+                            step="0.1" 
+                            value={formData.costPriceBox?.toString() || ''} 
+                            onChange={v => {
+                              const cost = parseFloat(v) || 0;
+                              const profit = formData.profitMarginPercent ?? 40;
+                              const pu = parseFloat((cost * (1 + profit / 100)).toFixed(2));
+                              setFormData({ 
+                                ...formData, 
+                                costPriceBox: cost, 
+                                costPriceUnit: cost,
+                                priceBox: pu, 
+                                priceUnit: pu 
+                              });
+                            }} 
+                          />
+                          <InputGroup 
+                            label="% Ganancia Unidad" 
+                            type="number" 
+                            step="0.5" 
+                            value={formData.profitMarginPercent?.toString() || ''} 
+                            onChange={v => {
+                              const profit = parseFloat(v) || 0;
+                              const cost = formData.costPriceBox || 0;
+                              const pu = parseFloat((cost * (1 + profit / 100)).toFixed(2));
+                              setFormData({ 
+                                ...formData, 
+                                profitMarginPercent: profit,
+                                profitMarginUnitPercent: profit,
+                                priceBox: pu, 
+                                priceUnit: pu 
+                              });
+                            }} 
+                          />
+                          <InputGroup 
+                            label={`Precio Venta x 1 Ud (${currencySymbol})`} 
+                            type="number" 
+                            step="0.01" 
+                            value={formData.priceBox?.toString() || ''} 
+                            onChange={v => {
+                              const pu = parseFloat(v) || 0;
+                              const cost = formData.costPriceBox || 0;
+                              const profit = cost > 0 ? parseFloat((((pu - cost) / cost) * 100).toFixed(1)) : 0;
+                              setFormData({ 
+                                ...formData, 
+                                priceBox: pu, 
+                                priceUnit: pu,
+                                profitMarginPercent: profit,
+                                profitMarginUnitPercent: profit
+                              });
+                            }} 
+                          />
+                        </div>
                       </div>
                     ) : (
                       <div className="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                           <InputGroup 
-                            label="Stock (Cajas)" 
+                            label="Stock Actual (Cajas) *" 
                             type="number" 
                             value={formData.stockBoxes?.toString()} 
                             onChange={v => {
@@ -2890,7 +3067,7 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                             }} 
                           />
                           <InputGroup 
-                            label="Uds x Caja" 
+                            label="Uds x Caja *" 
                             type="number" 
                             value={formData.unitsPerBox?.toString()} 
                             onChange={v => {
@@ -2910,7 +3087,28 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                             }} 
                           />
                           <InputGroup 
-                            label={`Costo x Caja (${currencySymbol})`} 
+                            label="⚠️ Stock Mínimo (Cajas Alarma) *" 
+                            type="number" 
+                            value={(formData.minStock ?? 5).toString()} 
+                            onChange={v => {
+                              const minVal = v === '' ? 0 : Math.max(0, parseInt(v) || 0);
+                              setFormData({ ...formData, minStock: minVal });
+                            }} 
+                          />
+                          <InputGroup 
+                            label="Stock Máximo (Cajas)" 
+                            type="number" 
+                            value={(formData.maxStock ?? 50).toString()} 
+                            onChange={v => {
+                              const maxVal = v === '' ? 50 : Math.max(1, parseInt(v) || 1);
+                              setFormData({ ...formData, maxStock: maxVal });
+                            }} 
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-200">
+                          <InputGroup 
+                            label={`Costo Compra x Caja (${currencySymbol})`} 
                             type="number" 
                             step="0.1" 
                             value={formData.costPriceBox?.toString() || ''} 
@@ -2932,7 +3130,7 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                             }} 
                           />
                           <InputGroup 
-                            label={`Costo x 1 Ud (${currencySymbol})`} 
+                            label={`Costo Compra x 1 Ud (${currencySymbol})`} 
                             type="number" 
                             step="0.05" 
                             value={formData.costPriceUnit?.toString() || ''} 

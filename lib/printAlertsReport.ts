@@ -15,6 +15,7 @@ export interface CriticalInventoryItem {
   minStock: number;
   stockUnits: number;
   unitsPerBox: number;
+  isUnitOnly?: boolean;
   type: 'EXPIRED' | 'SHORT_EXPIRY' | 'LOW_STOCK';
 }
 
@@ -49,7 +50,9 @@ export const getCriticalItems = (medications: Medication[]): {
       }
     }
 
-    const isLow = m.stockBoxes <= m.minStock;
+    const isUnitOnly = m.isUnitOnly || m.unitsPerBox === 1;
+    const currentStock = isUnitOnly ? (m.stockUnits ?? m.stockBoxes ?? 0) : (m.stockBoxes ?? 0);
+    const isLow = currentStock <= (m.minStock ?? 0);
 
     if (isExpired) {
       expired.push({
@@ -99,6 +102,7 @@ export const getCriticalItems = (medications: Medication[]): {
         minStock: m.minStock,
         stockUnits: m.stockUnits,
         unitsPerBox: m.unitsPerBox,
+        isUnitOnly,
         type: 'LOW_STOCK'
       });
     }
@@ -459,19 +463,22 @@ export const printCriticalInventoryReport = (
           </thead>
           <tbody>
             ${lowStock.map(item => {
-              const diff = Math.max(1, (item.minStock * 2) - item.stockBoxes);
+              const isUnit = item.isUnitOnly || item.unitsPerBox === 1;
+              const current = isUnit ? item.stockUnits : item.stockBoxes;
+              const unitText = isUnit ? 'uds' : 'cjs';
+              const diff = Math.max(1, (item.minStock * 2) - current);
               return `
                 <tr>
                   <td><strong>${item.name}</strong><br><small style="color: #64748b;">${item.genericName || ''}</small></td>
                   <td>${item.laboratory || '-'}</td>
-                  <td style="text-align: center; font-weight: 900; color: ${item.stockBoxes === 0 ? '#e11d48' : '#ea580c'};">
-                    ${item.stockBoxes === 0 ? 'AGOTADO (0 cjs)' : `${item.stockBoxes} cjs`}
+                  <td style="text-align: center; font-weight: 900; color: ${current === 0 ? '#e11d48' : '#ea580c'};">
+                    ${current === 0 ? `AGOTADO (0 ${unitText})` : `${current} ${unitText}`}
                   </td>
                   <td style="text-align: center; color: #475569; font-weight: bold;">
-                    ${item.minStock} cjs
+                    ${item.minStock} ${unitText}
                   </td>
                   <td style="text-align: right; font-weight: 900; color: #047857;">
-                    +${diff} cjs
+                    +${diff} ${unitText}
                   </td>
                 </tr>
               `;

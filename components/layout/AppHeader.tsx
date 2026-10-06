@@ -74,8 +74,12 @@ const AppHeader: React.FC<AppHeaderProps> = ({
   // Compute alerts: Low stock and Expiry
   const now = new Date().getTime();
   
-  // Stock minimum alerts: when current stock is equal or less than configured minimum
-  const lowStockMeds = medications.filter(m => m.stockBoxes <= m.minStock);
+  // Stock minimum alerts: when current stock is equal or less than configured minimum (cajas o unidades)
+  const lowStockMeds = medications.filter(m => {
+    const isUnit = m.isUnitOnly || m.unitsPerBox === 1;
+    const current = isUnit ? (m.stockUnits ?? m.stockBoxes ?? 0) : (m.stockBoxes ?? 0);
+    return current <= (m.minStock ?? 0);
+  });
 
   const expiredMeds = medications.filter(m => {
     const exp = m.batches[0]?.expiryDate;
@@ -205,7 +209,11 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                 ) : (
                   <>
                     {/* Low Stock Alerts */}
-                    {(activeAlertTab === 'ALL' || activeAlertTab === 'STOCK') && lowStockMeds.map(m => (
+                    {(activeAlertTab === 'ALL' || activeAlertTab === 'STOCK') && lowStockMeds.map(m => {
+                      const isUnit = m.isUnitOnly || m.unitsPerBox === 1;
+                      const currentStock = isUnit ? (m.stockUnits ?? m.stockBoxes ?? 0) : (m.stockBoxes ?? 0);
+                      const unitLabel = isUnit ? 'unidades' : 'cajas';
+                      return (
                       <div key={`stock-${m.id}`} className="p-2.5 bg-orange-50 border border-orange-200/80 rounded-xl flex items-center justify-between text-xs gap-2">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5">
@@ -213,14 +221,15 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                             <p className="font-black text-slate-900 leading-tight truncate">{m.name}</p>
                           </div>
                           <p className="text-[10px] text-orange-950 font-bold mt-0.5">
-                            Quedan solo <span className="underline font-black">{m.stockBoxes} cajas</span> (Mínimo: {m.minStock} cajas)
+                            Quedan solo <span className="underline font-black">{currentStock} {unitLabel}</span> (Mínimo: {m.minStock} {unitLabel})
                           </p>
                         </div>
                         <span className="px-2 py-0.5 bg-orange-500 text-white rounded-lg font-black text-[9px] uppercase whitespace-nowrap shrink-0">
                           Bajo Stock
                         </span>
                       </div>
-                    ))}
+                      );
+                    })}
 
                     {/* Expired Alerts */}
                     {(activeAlertTab === 'ALL' || activeAlertTab === 'EXPIRED') && expiredMeds.map(m => (
