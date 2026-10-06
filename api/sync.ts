@@ -1,18 +1,12 @@
-import { Pool, PoolConfig } from 'pg';
+import pg from 'pg';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Dedicated persistent zero-config cloud store for Farmacia Yireh
-const PRIMARY_CLOUD_OBJECT_ID = 'ff808181a09d98f701a0f067f7b646ce';
-const CLOUD_API_BASE = 'https://api.restful-api.dev/objects';
+const { Pool } = pg;
 
-let pool: Pool | null = null;
+let pool: pg.Pool | null = null;
+let tableInitialized = false;
 let supabaseClient: SupabaseClient | null = null;
 let inMemoryCache: Record<string, any> = {
-  medications: [],
-  customers: [],
-  sales: [],
-  suppliers: [],
-  purchases: [],
   staff: [
     {
       id: '1',
@@ -43,58 +37,21 @@ let inMemoryCache: Record<string, any> = {
   ]
 };
 
-async function fetchFromCloudStore(): Promise<Record<string, any> | null> {
-  try {
-    const res = await fetch(`${CLOUD_API_BASE}/${PRIMARY_CLOUD_OBJECT_ID}`, {
-      headers: { 'Accept': 'application/json' },
-      cache: 'no-store'
-    });
-    if (res.ok) {
-      const json = await res.json();
-      if (json?.data && typeof json.data === 'object') {
-        inMemoryCache = { ...inMemoryCache, ...json.data };
-        return inMemoryCache;
-      }
-    }
-  } catch (err) {
-    console.debug('Cloud store fetch error:', err);
-  }
-  return null;
-}
-
-async function saveToCloudStore(dataPatch: Record<string, any>): Promise<boolean> {
-  try {
-    inMemoryCache = { ...inMemoryCache, ...dataPatch, updatedAt: new Date().toISOString() };
-    const res = await fetch(`${CLOUD_API_BASE}/${PRIMARY_CLOUD_OBJECT_ID}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'farmasalud_yireh_sync',
-        data: inMemoryCache
-      })
-    });
-    return res.ok;
-  } catch (err) {
-    console.debug('Cloud store save error:', err);
-    return false;
-  }
-}
-
 function findPostgresConnectionString(): string | null {
   const env = process.env;
-  for (const [key, val] of Object.entries(env)) {
-    if (typeof val === 'string' && (val.startsWith('postgres://') || val.startsWith('postgresql://'))) {
-      return val;
-    }
-  }
   const candidates = [
     env.POSTGRES_URL_NON_POOLING,
-    env.POSTGRES_URL,
-    env.POSTGRES_PRISMA_URL,
-    env.DATABASE_URL,
     env.STORAGE_POSTGRES_URL_NON_POOLING,
+    env.SUPABASE_POSTGRES_URL_NON_POOLING,
+    env.FAMACIAYIREH_POSTGRES_URL_NON_POOLING,
+    env.POSTGRES_URL,
     env.STORAGE_POSTGRES_URL,
     env.SUPABASE_POSTGRES_URL,
+    env.FAMACIAYIREH_POSTGRES_URL,
+    env.DATABASE_URL,
+    env.STORAGE_DATABASE_URL,
+    env.POSTGRES_PRISMA_URL,
+    env.STORAGE_POSTGRES_PRISMA_URL,
     env.VERCEL_POSTGRES_URL
   ];
   for (const c of candidates) {
@@ -102,10 +59,15 @@ function findPostgresConnectionString(): string | null {
       return c.trim();
     }
   }
+  for (const [, val] of Object.entries(env)) {
+    if (typeof val === 'string' && (val.startsWith('postgres://') || val.startsWith('postgresql://'))) {
+      return val.trim();
+    }
+  }
   return null;
 }
 
-function getPostgresPool(): Pool | null {
+function getPostgresPool(): pg.Pool | null {
   if (pool) return pool;
   const connStr = findPostgresConnectionString();
   if (connStr) {
@@ -113,7 +75,7 @@ function getPostgresPool(): Pool | null {
       pool = new Pool({
         connectionString: connStr,
         ssl: { rejectUnauthorized: false },
-        connectionTimeoutMillis: 3500,
+        connectionTimeoutMillis: 5000,
         max: 3,
         idleTimeoutMillis: 20000
       });
@@ -123,11 +85,77 @@ function getPostgresPool(): Pool | null {
   return null;
 }
 
+async function ensurePostgresTable(pgPool: pg.Pool): Promise<void> {
+  if (tableInitialized) return;
+  try {
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS farma_sync (
+        id TEXT PRIMARY KEY,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ DEFAULT now()
+      );
+    `);
+    try {
+      await pgPool.query(`
+        ALTER TABLE farma_sync ENABLE ROW LEVEL SECURITY;
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_policies WHERE tablename = 'farma_sync' AND policyname = 'Permiso Completo FarmaPOS'
+          ) THEN
+            CREATE POLICY "Permiso Completo FarmaPOS" ON farma_sync FOR ALL USING (true) WITH CHECK (true);
+          END IF;
+        END $$;
+      `);
+    } catch {}
+    tableInitialized = true;
+  } catch (e) {
+    console.debug('Error ensuring farma_sync table:', e);
+  }
+}
+
 function getSupabaseClient(): SupabaseClient | null {
   if (supabaseClient) return supabaseClient;
   const env = process.env;
-  const url = env.SUPABASE_URL || env.VITE_SUPABASE_URL || env.STORAGE_URL || '';
-  const key = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || '';
+  let url =
+    env.SUPABASE_URL ||
+    env.STORAGE_SUPABASE_URL ||
+    env.STORAGE_URL ||
+    env.VITE_SUPABASE_URL ||
+    env.NEXT_PUBLIC_SUPABASE_URL ||
+    env.NEXT_PUBLIC_STORAGE_SUPABASE_URL ||
+    env.FAMACIAYIREH_SUPABASE_URL ||
+    '';
+  let key =
+    env.SUPABASE_SERVICE_ROLE_KEY ||
+    env.STORAGE_SUPABASE_SERVICE_ROLE_KEY ||
+    env.FAMACIAYIREH_SUPABASE_SERVICE_ROLE_KEY ||
+    env.SUPABASE_ANON_KEY ||
+    env.STORAGE_SUPABASE_ANON_KEY ||
+    env.STORAGE_ANON_KEY ||
+    env.VITE_SUPABASE_ANON_KEY ||
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    env.NEXT_PUBLIC_STORAGE_SUPABASE_ANON_KEY ||
+    env.FAMACIAYIREH_SUPABASE_ANON_KEY ||
+    '';
+
+  if (!url) {
+    for (const [, val] of Object.entries(env)) {
+      if (typeof val === 'string' && val.startsWith('https://') && val.includes('.supabase.co')) {
+        url = val.trim();
+        break;
+      }
+    }
+  }
+  if (!key) {
+    for (const [k, val] of Object.entries(env)) {
+      if (typeof val === 'string' && (k.endsWith('_SERVICE_ROLE_KEY') || k.endsWith('_ANON_KEY')) && val.length > 20) {
+        key = val.trim();
+        break;
+      }
+    }
+  }
+
   if (url && key && url.startsWith('http') && url.includes('.')) {
     try {
       supabaseClient = createClient(url, key, { auth: { persistSession: false } });
@@ -155,16 +183,11 @@ export default async function handler(req: any, res: any) {
   if (req.method === 'GET') {
     let result: Record<string, any> = { ...inMemoryCache };
 
-    // Intenta traer la versión más fresca desde la nube persistente
-    const cloudData = await fetchFromCloudStore();
-    if (cloudData) {
-      result = { ...result, ...cloudData };
-    }
-
-    // Consulta Postgres opcional si está configurado en Vercel
+    // Consulta Postgres (crea automáticamente la tabla farma_sync si es una base de datos nueva)
     const pgPool = getPostgresPool();
     if (pgPool) {
       try {
+        await ensurePostgresTable(pgPool);
         const { rows } = await pgPool.query('SELECT id, data FROM farma_sync;');
         if (Array.isArray(rows) && rows.length > 0) {
           for (const row of rows) {
@@ -186,6 +209,8 @@ export default async function handler(req: any, res: any) {
         }
       } catch {}
     }
+
+    inMemoryCache = { ...inMemoryCache, ...result };
 
     return res.status(200).json({
       success: true,
@@ -212,13 +237,13 @@ export default async function handler(req: any, res: any) {
       Object.assign(patch, allData);
     }
 
-    // Guardar en la nube persistente
-    await saveToCloudStore(patch);
+    inMemoryCache = { ...inMemoryCache, ...patch, updatedAt: new Date().toISOString() };
 
-    // Guardar en Postgres si está configurado
+    // Guardar en Postgres si está configurado (crea tabla automáticamente si no existe)
     const pgPool = getPostgresPool();
     if (pgPool) {
       try {
+        await ensurePostgresTable(pgPool);
         for (const [colId, colData] of Object.entries(patch)) {
           await pgPool.query(
             `INSERT INTO farma_sync (id, data, updated_at) 

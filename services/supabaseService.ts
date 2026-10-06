@@ -35,6 +35,7 @@ export const normalizeSupabaseUrl = (rawUrl: string): string => {
   if (!rawUrl || typeof rawUrl !== 'string') return '';
   let trimmed = rawUrl.trim().replace(/\/+$/, '');
   if (!trimmed || trimmed === 'null' || trimmed === 'undefined') return '';
+  if (trimmed.includes('restful-api.dev')) return '';
 
   // Automatically prepend https:// if missing
   if (!/^https?:\/\//i.test(trimmed)) {
@@ -73,8 +74,25 @@ export const getStoredSupabaseConfig = (): { url: string; anonKey: string } => {
   }
   
   const env = (import.meta as any).env || {};
-  const envUrlRaw = env.VITE_SUPABASE_URL || env.SUPABASE_URL || env.STORAGE_URL || env.VITE_STORAGE_URL || '';
-  const envKey = env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_ANON_KEY || env.STORAGE_ANON_KEY || env.SUPABASE_KEY || env.STORAGE_KEY || '';
+  const envUrlRaw = 
+    env.VITE_SUPABASE_URL || 
+    env.SUPABASE_URL || 
+    env.STORAGE_SUPABASE_URL || 
+    env.STORAGE_URL || 
+    env.VITE_STORAGE_URL || 
+    env.NEXT_PUBLIC_SUPABASE_URL || 
+    env.NEXT_PUBLIC_STORAGE_SUPABASE_URL || 
+    '';
+  const envKey = 
+    env.VITE_SUPABASE_ANON_KEY || 
+    env.SUPABASE_ANON_KEY || 
+    env.STORAGE_SUPABASE_ANON_KEY || 
+    env.STORAGE_ANON_KEY || 
+    env.SUPABASE_KEY || 
+    env.STORAGE_KEY || 
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
+    env.NEXT_PUBLIC_STORAGE_SUPABASE_ANON_KEY || 
+    '';
 
   const normalizedLocal = normalizeSupabaseUrl(localUrlRaw);
   const normalizedEnv = normalizeSupabaseUrl(envUrlRaw);
@@ -200,13 +218,10 @@ export const testSupabaseConnection = async (url: string, anonKey: string): Prom
   }
 };
 
-const PRIMARY_CLOUD_OBJECT_ID = 'ff808181a09d98f701a0f067f7b646ce';
-const CLOUD_API_BASE = 'https://api.restful-api.dev/objects';
-
 export const pushCollectionToSupabase = async (collectionId: string, data: any): Promise<boolean> => {
   let saved = false;
 
-  // 1. Guardar en el endpoint serverless /api/sync (Postgres / Supabase en Vercel)
+  // 1. Guardar en el endpoint serverless /api/sync (Postgres / Supabase conectado en Vercel)
   try {
     const res = await fetch('/api/sync', {
       method: 'POST',
@@ -220,39 +235,7 @@ export const pushCollectionToSupabase = async (collectionId: string, data: any):
     console.debug('Error en /api/sync:', e);
   }
 
-  // 2. Base de datos en la nube persistente directa (Zero-config para Vercel y móvil)
-  try {
-    // Primero obtener el objeto actual para hacer merge seguro
-    let currentStore: Record<string, any> = {};
-    try {
-      const getRes = await fetch(`${CLOUD_API_BASE}/${PRIMARY_CLOUD_OBJECT_ID}`, { cache: 'no-store' });
-      if (getRes.ok) {
-        const getJson = await getRes.json();
-        if (getJson?.data && typeof getJson.data === 'object') {
-          currentStore = getJson.data;
-        }
-      }
-    } catch {}
-
-    currentStore[collectionId] = data;
-    currentStore.updatedAt = new Date().toISOString();
-
-    const cloudRes = await fetch(`${CLOUD_API_BASE}/${PRIMARY_CLOUD_OBJECT_ID}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'farmasalud_yireh_sync',
-        data: currentStore
-      })
-    });
-    if (cloudRes.ok) {
-      saved = true;
-    }
-  } catch (err) {
-    console.debug('Error guardando en nube directa:', err);
-  }
-
-  // 3. Cliente directo de Supabase en el navegador (si el usuario conectó su propio Supabase)
+  // 2. Cliente directo de Supabase en el navegador (si está configurado)
   const client = getSupabaseClient();
   if (client) {
     try {
@@ -299,24 +282,7 @@ export const pullAllFromSupabase = async (): Promise<{ success: boolean; data?: 
     console.debug('Error consultando /api/sync:', e);
   }
 
-  // 2. Consultar Base de Datos en la nube persistente directa (garantiza datos en celulares sin configurar nada)
-  try {
-    const cloudRes = await fetch(`${CLOUD_API_BASE}/${PRIMARY_CLOUD_OBJECT_ID}`, {
-      headers: { 'Accept': 'application/json' },
-      cache: 'no-store'
-    });
-    if (cloudRes.ok) {
-      const cloudJson = await cloudRes.json();
-      if (cloudJson?.data && typeof cloudJson.data === 'object' && Object.keys(cloudJson.data).length > 0) {
-        combinedData = { ...combinedData, ...cloudJson.data };
-        fetchedAny = true;
-      }
-    }
-  } catch (err) {
-    console.debug('Error consultando nube directa:', err);
-  }
-
-  // 3. Cliente directo de Supabase (si está configurado con credenciales válidas)
+  // 2. Cliente directo de Supabase (si está configurado con credenciales válidas)
   const client = getSupabaseClient();
   if (client) {
     try {

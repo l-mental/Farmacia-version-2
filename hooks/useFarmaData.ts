@@ -230,6 +230,7 @@ export const useFarmaData = () => {
   const [isSyncingWithCloud, setIsSyncingWithCloud] = useState<boolean>(false);
   const isApplyingRemoteRef = useRef(false);
   const isInitialLoadedRef = useRef(false);
+  const lastMutationAtRef = useRef<number>(0);
 
   // 100% AUTOMATIC REAL-TIME SYNC FOR 4 COMPUTERS (Zero Setup, Zero Database Configuration)
   const [isAutoSyncConnected, setIsAutoSyncConnected] = useState<boolean>(true);
@@ -425,48 +426,47 @@ export const useFarmaData = () => {
   useEffect(() => {
     setIsSyncingWithCloud(true);
 
-    const initCloud = async () => {
-      try {
-        if (typeof window !== 'undefined' && localStorage.getItem('FARMA_CLOUD_CLEANED_V5') !== 'true') {
-          localStorage.setItem('FARMA_CLOUD_CLEANED_V5', 'true');
-          await Promise.all([
-            pushCollectionToSupabase('medications', []),
-            pushCollectionToSupabase('customers', []),
-            pushCollectionToSupabase('sales', []),
-            pushCollectionToSupabase('suppliers', []),
-            pushCollectionToSupabase('purchases', [])
-          ]);
+    pullAllFromSupabase().then(res => {
+      if (res.success && res.data && Object.keys(res.data).length > 0) {
+        if (Date.now() - lastMutationAtRef.current < 8000) {
           isInitialLoadedRef.current = true;
-          setIsSyncingWithCloud(false);
           return;
         }
-      } catch {}
-
-      pullAllFromSupabase().then(res => {
-      if (res.success && res.data && Object.keys(res.data).length > 0) {
         isApplyingRemoteRef.current = true;
-        if (res.data.medications && Array.isArray(res.data.medications)) {
-          setMedications(sortAlphabetical(res.data.medications));
+        if (Array.isArray(res.data.medications) && res.data.medications.length > 0) {
+          const cleaned = sortAlphabetical(res.data.medications);
+          setMedications(cleaned);
+          try { localStorage.setItem('FARMA_MEDS', JSON.stringify(cleaned)); } catch {}
         }
-        if (res.data.customers && Array.isArray(res.data.customers)) {
-          setCustomers(cleanDemoCustomers(res.data.customers));
+        if (Array.isArray(res.data.customers) && res.data.customers.length > 0) {
+          const cleaned = cleanDemoCustomers(res.data.customers);
+          setCustomers(cleaned);
+          try { localStorage.setItem('FARMA_CUSTOMERS', JSON.stringify(cleaned)); } catch {}
         }
-        if (res.data.sales && Array.isArray(res.data.sales)) {
-          setSales(cleanDemoSales(res.data.sales));
+        if (Array.isArray(res.data.sales) && res.data.sales.length > 0) {
+          const cleaned = cleanDemoSales(res.data.sales);
+          setSales(cleaned);
+          try { localStorage.setItem('FARMA_SALES', JSON.stringify(cleaned)); } catch {}
         }
-        if (res.data.suppliers && Array.isArray(res.data.suppliers)) {
-          setSuppliers(cleanDemoSuppliers(res.data.suppliers));
+        if (Array.isArray(res.data.suppliers) && res.data.suppliers.length > 0) {
+          const cleaned = cleanDemoSuppliers(res.data.suppliers);
+          setSuppliers(cleaned);
+          try { localStorage.setItem('FARMA_SUPPLIERS', JSON.stringify(cleaned)); } catch {}
         }
-        if (res.data.purchases && Array.isArray(res.data.purchases)) {
-          setPurchases(cleanDemoPurchases(res.data.purchases));
+        if (Array.isArray(res.data.purchases) && res.data.purchases.length > 0) {
+          const cleaned = cleanDemoPurchases(res.data.purchases);
+          setPurchases(cleaned);
+          try { localStorage.setItem('FARMA_PURCHASES', JSON.stringify(cleaned)); } catch {}
         }
-        if (res.data.staff && Array.isArray(res.data.staff) && res.data.staff.length > 0) {
-          setStaff(cleanDemoStaff(res.data.staff));
+        if (Array.isArray(res.data.staff) && res.data.staff.length > 0) {
+          const cleaned = cleanDemoStaff(res.data.staff);
+          setStaff(cleaned);
+          try { localStorage.setItem('FARMA_STAFF', JSON.stringify(cleaned)); } catch {}
         }
         if (res.data.pharmacyInfo) {
           setPharmacyInfo(res.data.pharmacyInfo);
         }
-        if (res.data.discountPlans && Array.isArray(res.data.discountPlans)) {
+        if (Array.isArray(res.data.discountPlans) && res.data.discountPlans.length > 0) {
           setDiscountPlans(res.data.discountPlans);
         }
         setCloudLastSync(new Date().toLocaleTimeString('es-ES'));
@@ -479,15 +479,12 @@ export const useFarmaData = () => {
       } else {
         isInitialLoadedRef.current = true;
       }
-      }).catch(err => {
-        console.warn('Error al sincronizar con la nube al iniciar:', err);
-        isInitialLoadedRef.current = true;
-      }).finally(() => {
-        setIsSyncingWithCloud(false);
-      });
-    };
-
-    initCloud();
+    }).catch(err => {
+      console.warn('Error al sincronizar con la nube al iniciar:', err);
+      isInitialLoadedRef.current = true;
+    }).finally(() => {
+      setIsSyncingWithCloud(false);
+    });
 
     const unsub = subscribeToRealtimeChanges(
       (collectionId, data) => {
@@ -560,10 +557,15 @@ export const useFarmaData = () => {
 
     // Sondeo periódico cada 4.5 segundos para sincronizar automáticamente entre PC y celular
     const pollTimer = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && !isApplyingRemoteRef.current) {
+      if (
+        typeof document !== 'undefined' &&
+        document.visibilityState === 'visible' &&
+        !isApplyingRemoteRef.current &&
+        Date.now() - lastMutationAtRef.current > 8000
+      ) {
         pullAllFromSupabase().then(res => {
-          if (res.success && res.data) {
-            if (res.data.staff && Array.isArray(res.data.staff) && res.data.staff.length > 0) {
+          if (res.success && res.data && Date.now() - lastMutationAtRef.current > 8000) {
+            if (Array.isArray(res.data.staff) && res.data.staff.length > 0) {
               const cleaned = cleanDemoStaff(res.data.staff);
               setStaff(prev => {
                 const s1 = JSON.stringify(prev);
@@ -571,7 +573,7 @@ export const useFarmaData = () => {
                 return s1 !== s2 ? cleaned : prev;
               });
             }
-            if (res.data.medications && Array.isArray(res.data.medications)) {
+            if (Array.isArray(res.data.medications) && res.data.medications.length > 0) {
               const cleaned = sortAlphabetical(res.data.medications);
               setMedications(prev => {
                 const s1 = JSON.stringify(prev);
@@ -579,9 +581,33 @@ export const useFarmaData = () => {
                 return s1 !== s2 ? cleaned : prev;
               });
             }
-            if (res.data.sales && Array.isArray(res.data.sales)) {
+            if (Array.isArray(res.data.sales) && res.data.sales.length > 0) {
               const cleaned = cleanDemoSales(res.data.sales);
               setSales(prev => {
+                const s1 = JSON.stringify(prev);
+                const s2 = JSON.stringify(cleaned);
+                return s1 !== s2 ? cleaned : prev;
+              });
+            }
+            if (Array.isArray(res.data.customers) && res.data.customers.length > 0) {
+              const cleaned = cleanDemoCustomers(res.data.customers);
+              setCustomers(prev => {
+                const s1 = JSON.stringify(prev);
+                const s2 = JSON.stringify(cleaned);
+                return s1 !== s2 ? cleaned : prev;
+              });
+            }
+            if (Array.isArray(res.data.suppliers) && res.data.suppliers.length > 0) {
+              const cleaned = cleanDemoSuppliers(res.data.suppliers);
+              setSuppliers(prev => {
+                const s1 = JSON.stringify(prev);
+                const s2 = JSON.stringify(cleaned);
+                return s1 !== s2 ? cleaned : prev;
+              });
+            }
+            if (Array.isArray(res.data.purchases) && res.data.purchases.length > 0) {
+              const cleaned = cleanDemoPurchases(res.data.purchases);
+              setPurchases(prev => {
                 const s1 = JSON.stringify(prev);
                 const s2 = JSON.stringify(cleaned);
                 return s1 !== s2 ? cleaned : prev;
@@ -603,45 +629,63 @@ export const useFarmaData = () => {
     try { localStorage.setItem('FARMA_ACTIVE_REGISTER', activeCashRegister); } catch {}
   }, [activeCashRegister]);
 
+  const isFirstMountMeds = useRef(true);
   useEffect(() => {
     try { localStorage.setItem('FARMA_MEDS', JSON.stringify(medications)); } catch {}
-    if (isInitialLoadedRef.current && !isApplyingRemoteRef.current) {
+    if (isFirstMountMeds.current) { isFirstMountMeds.current = false; return; }
+    if (!isApplyingRemoteRef.current) {
+      lastMutationAtRef.current = Date.now();
       pushCollectionToSupabase('medications', medications);
     }
   }, [medications]);
 
+  const isFirstMountCustomers = useRef(true);
   useEffect(() => {
     try { localStorage.setItem('FARMA_CUSTOMERS', JSON.stringify(customers)); } catch {}
-    if (isInitialLoadedRef.current && !isApplyingRemoteRef.current) {
+    if (isFirstMountCustomers.current) { isFirstMountCustomers.current = false; return; }
+    if (!isApplyingRemoteRef.current) {
+      lastMutationAtRef.current = Date.now();
       pushCollectionToSupabase('customers', customers);
     }
   }, [customers]);
 
+  const isFirstMountStaff = useRef(true);
   useEffect(() => {
     try { localStorage.setItem('FARMA_STAFF', JSON.stringify(staff)); } catch {}
-    if (isInitialLoadedRef.current && !isApplyingRemoteRef.current) {
+    if (isFirstMountStaff.current) { isFirstMountStaff.current = false; return; }
+    if (!isApplyingRemoteRef.current) {
+      lastMutationAtRef.current = Date.now();
       broadcastSyncEvent('STAFF_UPDATED', { staff });
       pushCollectionToSupabase('staff', staff);
     }
   }, [staff]);
 
+  const isFirstMountSales = useRef(true);
   useEffect(() => {
     try { localStorage.setItem('FARMA_SALES', JSON.stringify(sales)); } catch {}
-    if (isInitialLoadedRef.current && !isApplyingRemoteRef.current) {
+    if (isFirstMountSales.current) { isFirstMountSales.current = false; return; }
+    if (!isApplyingRemoteRef.current) {
+      lastMutationAtRef.current = Date.now();
       pushCollectionToSupabase('sales', sales);
     }
   }, [sales]);
 
+  const isFirstMountSuppliers = useRef(true);
   useEffect(() => {
     try { localStorage.setItem('FARMA_SUPPLIERS', JSON.stringify(suppliers)); } catch {}
-    if (isInitialLoadedRef.current && !isApplyingRemoteRef.current) {
+    if (isFirstMountSuppliers.current) { isFirstMountSuppliers.current = false; return; }
+    if (!isApplyingRemoteRef.current) {
+      lastMutationAtRef.current = Date.now();
       pushCollectionToSupabase('suppliers', suppliers);
     }
   }, [suppliers]);
 
+  const isFirstMountPurchases = useRef(true);
   useEffect(() => {
     try { localStorage.setItem('FARMA_PURCHASES', JSON.stringify(purchases)); } catch {}
-    if (isInitialLoadedRef.current && !isApplyingRemoteRef.current) {
+    if (isFirstMountPurchases.current) { isFirstMountPurchases.current = false; return; }
+    if (!isApplyingRemoteRef.current) {
+      lastMutationAtRef.current = Date.now();
       pushCollectionToSupabase('purchases', purchases);
     }
   }, [purchases]);
@@ -650,16 +694,22 @@ export const useFarmaData = () => {
     try { localStorage.setItem('FARMA_CURRENCY', JSON.stringify(currency)); } catch {}
   }, [currency]);
 
+  const isFirstMountInfo = useRef(true);
   useEffect(() => {
     try { localStorage.setItem('FARMA_PHARMACY_INFO', JSON.stringify(pharmacyInfo)); } catch {}
-    if (isInitialLoadedRef.current && !isApplyingRemoteRef.current) {
+    if (isFirstMountInfo.current) { isFirstMountInfo.current = false; return; }
+    if (!isApplyingRemoteRef.current) {
+      lastMutationAtRef.current = Date.now();
       pushCollectionToSupabase('pharmacyInfo', pharmacyInfo);
     }
   }, [pharmacyInfo]);
 
+  const isFirstMountDiscounts = useRef(true);
   useEffect(() => {
     try { localStorage.setItem('FARMA_DISCOUNTS', JSON.stringify(discountPlans)); } catch {}
-    if (isInitialLoadedRef.current && !isApplyingRemoteRef.current) {
+    if (isFirstMountDiscounts.current) { isFirstMountDiscounts.current = false; return; }
+    if (!isApplyingRemoteRef.current) {
+      lastMutationAtRef.current = Date.now();
       pushCollectionToSupabase('discountPlans', discountPlans);
     }
   }, [discountPlans]);
@@ -696,7 +746,14 @@ export const useFarmaData = () => {
   };
 
   const handleAddPatient = (patient: Customer) => {
-    setCustomers(prev => [...prev, patient]);
+    lastMutationAtRef.current = Date.now();
+    isInitialLoadedRef.current = true;
+    setCustomers(prev => {
+      const updated = [...prev, patient];
+      try { localStorage.setItem('FARMA_CUSTOMERS', JSON.stringify(updated)); } catch {}
+      pushCollectionToSupabase('customers', updated);
+      return updated;
+    });
     broadcastSyncEvent('CUSTOMER_ADDED', { customer: patient });
   };
 
@@ -735,14 +792,26 @@ export const useFarmaData = () => {
       paymentMethod
     };
 
-    setSales(prev => [newSale, ...prev]);
+    lastMutationAtRef.current = Date.now();
+    isInitialLoadedRef.current = true;
+    setSales(prev => {
+      const updatedSales = [newSale, ...prev];
+      try { localStorage.setItem('FARMA_SALES', JSON.stringify(updatedSales)); } catch {}
+      pushCollectionToSupabase('sales', updatedSales);
+      return updatedSales;
+    });
 
     if (customer) {
-      setCustomers(prev => prev.map(c => 
-        c.id === customer.id 
-          ? { ...c, history: [newSale.id, ...c.history] } 
-          : c
-      ));
+      setCustomers(prev => {
+        const updatedCustomers = prev.map(c => 
+          c.id === customer.id 
+            ? { ...c, history: [newSale.id, ...c.history] } 
+            : c
+        );
+        try { localStorage.setItem('FARMA_CUSTOMERS', JSON.stringify(updatedCustomers)); } catch {}
+        pushCollectionToSupabase('customers', updatedCustomers);
+        return updatedCustomers;
+      });
     }
 
     const updatedMeds = medications.map(med => {
@@ -776,6 +845,8 @@ export const useFarmaData = () => {
       return med;
     });
     setMedications(updatedMeds);
+    try { localStorage.setItem('FARMA_MEDS', JSON.stringify(updatedMeds)); } catch {}
+    pushCollectionToSupabase('medications', updatedMeds);
 
     // Auto-broadcast instant stock reduction and sale to the other 3 computers
     broadcastSyncEvent('SALE_COMPLETED', { sale: newSale, updatedMeds });
@@ -784,7 +855,14 @@ export const useFarmaData = () => {
   };
 
   const handleRegisterPurchase = (purchase: Purchase) => {
-    setPurchases(prev => [purchase, ...prev]);
+    lastMutationAtRef.current = Date.now();
+    isInitialLoadedRef.current = true;
+    setPurchases(prev => {
+      const updatedPurchases = [purchase, ...prev];
+      try { localStorage.setItem('FARMA_PURCHASES', JSON.stringify(updatedPurchases)); } catch {}
+      pushCollectionToSupabase('purchases', updatedPurchases);
+      return updatedPurchases;
+    });
     
     // Update inventory
     const updatedMeds = medications.map(med => {
@@ -820,53 +898,68 @@ export const useFarmaData = () => {
       return med;
     });
     setMedications(updatedMeds);
+    try { localStorage.setItem('FARMA_MEDS', JSON.stringify(updatedMeds)); } catch {}
+    pushCollectionToSupabase('medications', updatedMeds);
 
     // Auto-broadcast purchase and new stock to all 4 computers
     broadcastSyncEvent('PURCHASE_REGISTERED', { purchase, updatedMeds });
   };
 
   const handleAddMedication = (newMed: Medication) => {
+    lastMutationAtRef.current = Date.now();
+    isInitialLoadedRef.current = true;
     setMedications(prev => {
       const updated = sortAlphabetical([...prev, newMed]);
-      localStorage.setItem('FARMA_MEDS', JSON.stringify(updated));
+      try { localStorage.setItem('FARMA_MEDS', JSON.stringify(updated)); } catch {}
+      pushCollectionToSupabase('medications', updated);
       broadcastSyncEvent('MED_UPDATED', { updatedMeds: updated });
       return updated;
     });
   };
 
   const handleUpdateMedication = (updatedMed: Medication) => {
+    lastMutationAtRef.current = Date.now();
+    isInitialLoadedRef.current = true;
     setMedications(prev => {
       const updated = prev.map(m => m.id === updatedMed.id ? updatedMed : m);
-      localStorage.setItem('FARMA_MEDS', JSON.stringify(updated));
+      try { localStorage.setItem('FARMA_MEDS', JSON.stringify(updated)); } catch {}
+      pushCollectionToSupabase('medications', updated);
       broadcastSyncEvent('MED_UPDATED', { updatedMeds: updated });
       return updated;
     });
   };
 
   const handleDeleteMedication = (id: string) => {
+    lastMutationAtRef.current = Date.now();
+    isInitialLoadedRef.current = true;
     setMedications(prev => {
       const updated = prev.filter(m => m.id !== id);
-      try {
-        localStorage.setItem('FARMA_MEDS', JSON.stringify(updated));
-      } catch {}
+      try { localStorage.setItem('FARMA_MEDS', JSON.stringify(updated)); } catch {}
+      pushCollectionToSupabase('medications', updated);
       broadcastSyncEvent('MED_DELETED', { deletedId: id, updatedMeds: updated });
       return updated;
     });
   };
 
   const handleBatchAddMeds = (newMeds: Medication[]) => {
+    lastMutationAtRef.current = Date.now();
+    isInitialLoadedRef.current = true;
     setMedications(prev => {
       const merged = sortAlphabetical([...prev, ...newMeds]);
-      localStorage.setItem('FARMA_MEDS', JSON.stringify(merged));
+      try { localStorage.setItem('FARMA_MEDS', JSON.stringify(merged)); } catch {}
+      pushCollectionToSupabase('medications', merged);
       broadcastSyncEvent('MEDS_BATCH_ADDED', { newMeds: merged });
       return merged;
     });
   };
 
   const handleReplaceMeds = (newMeds: Medication[]) => {
+    lastMutationAtRef.current = Date.now();
+    isInitialLoadedRef.current = true;
     const sorted = sortAlphabetical(newMeds);
     setMedications(sorted);
-    localStorage.setItem('FARMA_MEDS', JSON.stringify(sorted));
+    try { localStorage.setItem('FARMA_MEDS', JSON.stringify(sorted)); } catch {}
+    pushCollectionToSupabase('medications', sorted);
     broadcastSyncEvent('MEDS_BATCH_ADDED', { newMeds: sorted });
   };
 

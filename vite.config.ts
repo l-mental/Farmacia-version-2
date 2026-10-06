@@ -5,29 +5,54 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig(({ mode }) => {
     const env = { ...process.env, ...loadEnv(mode, '.', '') };
-    const supabaseUrl = 
+    let supabaseUrl = 
       env.VITE_SUPABASE_URL || 
       env.SUPABASE_URL || 
+      env.STORAGE_SUPABASE_URL || 
       env.STORAGE_URL || 
       env.VITE_STORAGE_URL || 
       env.NEXT_PUBLIC_SUPABASE_URL || 
+      env.NEXT_PUBLIC_STORAGE_SUPABASE_URL || 
+      env.FAMACIAYIREH_SUPABASE_URL || 
       '';
-    const supabaseKey = 
+    let supabaseKey = 
       env.VITE_SUPABASE_ANON_KEY || 
       env.SUPABASE_ANON_KEY || 
+      env.STORAGE_SUPABASE_ANON_KEY || 
       env.STORAGE_ANON_KEY || 
       env.VITE_STORAGE_ANON_KEY || 
       env.SUPABASE_KEY || 
       env.STORAGE_KEY || 
       env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
+      env.NEXT_PUBLIC_STORAGE_SUPABASE_ANON_KEY || 
+      env.FAMACIAYIREH_SUPABASE_ANON_KEY || 
       '';
+
+    if (!supabaseUrl) {
+      for (const [, val] of Object.entries(env)) {
+        if (typeof val === 'string' && val.startsWith('https://') && val.includes('.supabase.co')) {
+          supabaseUrl = val.trim();
+          break;
+        }
+      }
+    }
+    if (!supabaseKey) {
+      for (const [k, val] of Object.entries(env)) {
+        if (typeof val === 'string' && k.endsWith('_ANON_KEY') && val.length > 20) {
+          supabaseKey = val.trim();
+          break;
+        }
+      }
+    }
+
+    const localSyncMemory: Record<string, any> = {};
 
     return {
       server: {
         port: 3000,
         host: '0.0.0.0',
       },
-      envPrefix: ['VITE_', 'STORAGE_', 'SUPABASE_', 'NEXT_PUBLIC_'],
+      envPrefix: ['VITE_', 'STORAGE_', 'SUPABASE_', 'NEXT_PUBLIC_', 'FAMACIAYIREH_'],
       plugins: [
         react(), 
         tailwindcss(),
@@ -44,15 +69,8 @@ export default defineConfig(({ mode }) => {
                 res.end();
                 return;
               }
-              const CLOUD_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a0f067f7b646ce';
               if (req.method === 'GET') {
-                try {
-                  const cloudRes = await fetch(CLOUD_URL, { cache: 'no-store' });
-                  const cloudJson = await cloudRes.json();
-                  res.end(JSON.stringify({ success: true, data: cloudJson?.data || {} }));
-                } catch {
-                  res.end(JSON.stringify({ success: true, data: {} }));
-                }
+                res.end(JSON.stringify({ success: true, data: localSyncMemory }));
                 return;
               }
               if (req.method === 'POST') {
@@ -61,20 +79,12 @@ export default defineConfig(({ mode }) => {
                 req.on('end', async () => {
                   try {
                     const parsed = JSON.parse(body || '{}');
-                    const getRes = await fetch(CLOUD_URL, { cache: 'no-store' });
-                    const getJson = await getRes.json();
-                    const currentData = getJson?.data || {};
                     if (parsed.collection && parsed.data !== undefined) {
-                      currentData[parsed.collection] = parsed.data;
+                      localSyncMemory[parsed.collection] = parsed.data;
                     } else if (parsed.allData) {
-                      Object.assign(currentData, parsed.allData);
+                      Object.assign(localSyncMemory, parsed.allData);
                     }
-                    currentData.updatedAt = new Date().toISOString();
-                    await fetch(CLOUD_URL, {
-                      method: 'PUT',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ name: 'farmasalud_yireh_sync', data: currentData })
-                    });
+                    localSyncMemory.updatedAt = new Date().toISOString();
                     res.end(JSON.stringify({ success: true }));
                   } catch (e) {
                     res.end(JSON.stringify({ success: false, error: String(e) }));
