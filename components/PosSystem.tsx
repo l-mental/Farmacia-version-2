@@ -469,11 +469,13 @@ const PosSystem: React.FC<PosSystemProps> = ({
                   <div className="flex items-center gap-2 mb-1.5">
                     <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden">
                       <div 
-                        className={`h-full rounded-full ${med.stockBoxes < 10 ? 'bg-rose-500' : 'bg-emerald-500'}`}
-                        style={{ width: `${Math.min(100, (med.stockBoxes / 50) * 100)}%` }}
+                        className={`h-full rounded-full ${(med.isUnitOnly || med.unitsPerBox === 1 ? med.stockUnits : med.stockBoxes) < 10 ? 'bg-rose-500' : 'bg-emerald-500'}`}
+                        style={{ width: `${Math.min(100, ((med.isUnitOnly || med.unitsPerBox === 1 ? med.stockUnits : med.stockBoxes) / 50) * 100)}%` }}
                       ></div>
                     </div>
-                    <span className="text-[9px] font-black text-slate-400 uppercase">{med.stockBoxes} Cajas</span>
+                    <span className="text-[9px] font-black text-slate-400 uppercase">
+                      {med.isUnitOnly || med.unitsPerBox === 1 ? `${med.stockUnits} Unidades` : `${med.stockBoxes} Cajas`}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-[9px] font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
@@ -486,22 +488,34 @@ const PosSystem: React.FC<PosSystemProps> = ({
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-3">
-                  <button 
-                    onClick={() => addToCart(med, false)}
-                    className="flex flex-col items-center justify-center p-3 bg-emerald-50 border border-emerald-100 rounded-2xl hover:bg-emerald-600 hover:text-white transition-all group/btn active:scale-95"
-                  >
-                    <span className="text-[8px] font-black uppercase tracking-widest mb-1 opacity-60 group-hover/btn:opacity-100">Caja</span>
-                    <span className="font-black text-sm">{currencySymbol}{med.priceBox}</span>
-                  </button>
+                {med.isUnitOnly || med.unitsPerBox === 1 ? (
                   <button 
                     onClick={() => addToCart(med, true)}
-                    className="flex flex-col items-center justify-center p-3 bg-blue-50 border border-blue-100 rounded-2xl hover:bg-blue-600 hover:text-white transition-all group/btn active:scale-95"
+                    className="w-full flex items-center justify-between px-4 py-3 bg-blue-50 border border-blue-200 rounded-2xl hover:bg-blue-600 hover:text-white transition-all group/btn active:scale-95"
                   >
-                    <span className="text-[8px] font-black uppercase tracking-widest mb-1 opacity-60 group-hover/btn:opacity-100">Unidad</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-700 group-hover/btn:text-white">
+                      Unidad Individual
+                    </span>
                     <span className="font-black text-sm">{currencySymbol}{med.priceUnit}</span>
                   </button>
-                </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    <button 
+                      onClick={() => addToCart(med, false)}
+                      className="flex flex-col items-center justify-center p-3 bg-emerald-50 border border-emerald-100 rounded-2xl hover:bg-emerald-600 hover:text-white transition-all group/btn active:scale-95"
+                    >
+                      <span className="text-[8px] font-black uppercase tracking-widest mb-1 opacity-60 group-hover/btn:opacity-100">Caja</span>
+                      <span className="font-black text-sm">{currencySymbol}{med.priceBox}</span>
+                    </button>
+                    <button 
+                      onClick={() => addToCart(med, true)}
+                      className="flex flex-col items-center justify-center p-3 bg-blue-50 border border-blue-100 rounded-2xl hover:bg-blue-600 hover:text-white transition-all group/btn active:scale-95"
+                    >
+                      <span className="text-[8px] font-black uppercase tracking-widest mb-1 opacity-60 group-hover/btn:opacity-100">Unidad</span>
+                      <span className="font-black text-sm">{currencySymbol}{med.priceUnit}</span>
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}

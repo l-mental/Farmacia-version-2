@@ -25,7 +25,7 @@ export interface SyncMessage {
   payload: any;
 }
 
-const DEFAULT_SYNC_ROOM = 'farma-yireh-auto-sync-78921-bolivia';
+const DEFAULT_SYNC_ROOM = 'farma-yireh-clean-live-v5';
 const CLIENT_INSTANCE_ID = 'PC_' + Math.random().toString(36).slice(2, 8).toUpperCase();
 
 let eventSource: EventSource | null = null;
@@ -45,7 +45,12 @@ try {
 
 export const getSyncRoom = (): string => {
   try {
-    return localStorage.getItem('FARMA_AUTO_SYNC_ROOM') || DEFAULT_SYNC_ROOM;
+    const saved = localStorage.getItem('FARMA_AUTO_SYNC_ROOM');
+    if (saved && saved !== 'farma-yireh-auto-sync-78921-bolivia') {
+      return saved;
+    }
+    localStorage.setItem('FARMA_AUTO_SYNC_ROOM', DEFAULT_SYNC_ROOM);
+    return DEFAULT_SYNC_ROOM;
   } catch {
     return DEFAULT_SYNC_ROOM;
   }
@@ -171,8 +176,6 @@ export const startAutoSyncListener = (
     }
   };
 
-  pollRecentChanges();
-
   if (eventSource) {
     eventSource.close();
     eventSource = null;
@@ -180,7 +183,7 @@ export const startAutoSyncListener = (
 
   const connect = () => {
     try {
-      const url = `https://ntfy.sh/${currentRoom}/sse?since=all`;
+      const url = `https://ntfy.sh/${currentRoom}/sse`;
       eventSource = new EventSource(url);
 
       eventSource.onopen = () => {

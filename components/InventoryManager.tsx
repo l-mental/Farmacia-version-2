@@ -73,11 +73,13 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
   // Quick restock modal state
   const [restockMed, setRestockMed] = useState<Medication | null>(null);
   const [restockBoxes, setRestockBoxes] = useState<number>(5);
+  const [restockByUnit, setRestockByUnit] = useState<boolean>(false);
   const [restockLot, setRestockLot] = useState<string>('');
   const [restockExpiry, setRestockExpiry] = useState<string>('');
 
   // Quick Inline Top Bar state
   const [showQuickBar, setShowQuickBar] = useState(true);
+  const [quickIsUnitOnly, setQuickIsUnitOnly] = useState<boolean>(false);
   const [quickName, setQuickName] = useState('');
   const [quickCostPriceBox, setQuickCostPriceBox] = useState<number | ''>(25);
   const [quickProfitPercent, setQuickProfitPercent] = useState<number | ''>(40);
@@ -253,12 +255,13 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
   }, [quickName]);
 
   const applyPresetToModal = (preset: MedicationPreset) => {
+    const isUnitOnly = Boolean(preset.isUnitOnly || preset.unitsPerBox === 1);
     const priceBox = preset.priceBox;
-    const units = preset.unitsPerBox;
+    const units = isUnitOnly ? 1 : preset.unitsPerBox;
     const currentBoxes = formData.stockBoxes || 10;
     const costBox = preset.costPriceBox || parseFloat((preset.priceBox * 0.7).toFixed(2));
     const profit = preset.profitMarginPercent || (costBox > 0 ? parseFloat((((preset.priceBox - costBox) / costBox) * 100).toFixed(1)) : 40);
-    const costUnit = parseFloat((costBox / units).toFixed(2));
+    const costUnit = isUnitOnly ? costBox : parseFloat((costBox / units).toFixed(2));
 
     setFormData(prev => ({
       ...prev,
@@ -266,12 +269,13 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
       genericName: preset.genericName,
       category: preset.category,
       laboratory: preset.laboratory,
+      isUnitOnly,
       unitsPerBox: units,
       costPriceBox: costBox,
       costPriceUnit: costUnit,
       profitMarginPercent: profit,
       priceBox: priceBox,
-      priceUnit: parseFloat((priceBox / units).toFixed(2)),
+      priceUnit: isUnitOnly ? priceBox : parseFloat((priceBox / units).toFixed(2)),
       description: preset.description,
       imageUrl: preset.imageUrl,
       isControlled: preset.isControlled,
@@ -288,13 +292,15 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
   };
 
   const applyPresetToQuickBar = (preset: MedicationPreset) => {
+    const isUnitOnly = Boolean(preset.isUnitOnly || preset.unitsPerBox === 1);
     const costBox = preset.costPriceBox || parseFloat((preset.priceBox * 0.7).toFixed(2));
     const profit = preset.profitMarginPercent || (costBox > 0 ? parseFloat((((preset.priceBox - costBox) / costBox) * 100).toFixed(1)) : 40);
+    setQuickIsUnitOnly(isUnitOnly);
     setQuickName(preset.name);
     setQuickCostPriceBox(costBox);
     setQuickProfitPercent(profit);
     setQuickPriceBox(preset.priceBox);
-    setQuickUnitsPerBox(preset.unitsPerBox);
+    setQuickUnitsPerBox(isUnitOnly ? 1 : preset.unitsPerBox);
     setQuickSuggestionsOpen(false);
   };
 
@@ -404,7 +410,12 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
     return sortedAndFiltered.slice(start, start + pageSize);
   }, [sortedAndFiltered, currentPage, pageSize]);
 
-  const openAddModal = () => {
+  const isLikelyUnitOnlyName = (nameText: string): boolean => {
+    const lower = nameText.toLowerCase();
+    return ['jarabe', 'frasco', 'suspensión', 'suspension', 'gotas', 'inhalador', 'spray', 'crema', 'gel', 'pomada', 'loción', 'locion', 'shampoo', 'tarro', 'lata', 'tubo'].some(kw => lower.includes(kw));
+  };
+
+  const openAddModal = (unitOnlyMode = false) => {
     if (!canManageInventory) {
       alert('Acceso restringido: Los cajeros no tienen permisos para crear medicamentos en el inventario.');
       return;
@@ -416,20 +427,21 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
       genericName: '',
       laboratory: 'Laboratorio Genérico',
       description: 'Medicamento registrado para venta en mostrador.',
-      costPriceBox: 20,
-      costPriceUnit: 1.0,
-      profitMarginPercent: 50,
-      priceBox: 30,
-      priceUnit: 1.5,
-      unitsPerBox: 20,
+      isUnitOnly: unitOnlyMode,
+      costPriceBox: unitOnlyMode ? 18 : 20,
+      costPriceUnit: unitOnlyMode ? 18 : 1.0,
+      profitMarginPercent: unitOnlyMode ? 38.9 : 50,
+      priceBox: unitOnlyMode ? 25 : 30,
+      priceUnit: unitOnlyMode ? 25 : 1.5,
+      unitsPerBox: unitOnlyMode ? 1 : 20,
       category: Category.OTHERS,
       imageUrl: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=400',
-      stockBoxes: 10,
-      stockUnits: 200,
+      stockBoxes: unitOnlyMode ? 8 : 10,
+      stockUnits: unitOnlyMode ? 8 : 200,
       isControlled: false,
       minStock: 5,
       maxStock: 50,
-      batches: [{ lotNumber: generateAutoLot(), expiryDate: getDatePlusYears(2), quantity: 200 }]
+      batches: [{ lotNumber: generateAutoLot(), expiryDate: getDatePlusYears(2), quantity: unitOnlyMode ? 8 : 200 }]
     });
     setIsModalOpen(true);
   };
@@ -441,13 +453,16 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
     }
     setEditingMed(med);
     setModalMode('DETAILED'); // When editing, detailed mode allows full adjustments
+    const isUnitOnly = Boolean(med.isUnitOnly || med.unitsPerBox === 1);
     const costBox = med.costPriceBox ?? parseFloat(((med.priceBox || 30) * 0.7).toFixed(2));
-    const units = med.unitsPerBox || 20;
-    const costUnit = med.costPriceUnit ?? parseFloat((costBox / units).toFixed(2));
+    const units = isUnitOnly ? 1 : (med.unitsPerBox || 20);
+    const costUnit = med.costPriceUnit ?? (isUnitOnly ? costBox : parseFloat((costBox / units).toFixed(2)));
     const profit = med.profitMarginPercent ?? (costBox > 0 ? parseFloat(((((med.priceBox || 30) - costBox) / costBox) * 100).toFixed(1)) : 40);
 
     setFormData({
       ...med,
+      isUnitOnly,
+      unitsPerBox: units,
       costPriceBox: costBox,
       costPriceUnit: costUnit,
       profitMarginPercent: profit,
@@ -463,8 +478,10 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
       alert('Acceso restringido: Los cajeros no pueden manipular el inventario.');
       return;
     }
+    const unitOnly = Boolean(med.isUnitOnly || med.unitsPerBox === 1);
     setRestockMed(med);
-    setRestockBoxes(5);
+    setRestockByUnit(unitOnly);
+    setRestockBoxes(unitOnly ? 20 : 5);
     setRestockLot(generateAutoLot());
     setRestockExpiry(getDatePlusYears(2));
   };
@@ -472,7 +489,7 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
   const handleConfirmRestock = () => {
     if (!restockMed) return;
     if (restockBoxes <= 0) {
-      alert('Por favor ingrese una cantidad mayor a 0 cajas.');
+      alert(`Por favor ingrese una cantidad mayor a 0 ${restockByUnit ? 'unidades' : 'cajas'}.`);
       return;
     }
     if (!restockLot.trim()) {
@@ -484,7 +501,11 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
       return;
     }
 
-    const unitsAdded = restockBoxes * restockMed.unitsPerBox;
+    const isMedUnitOnly = Boolean(restockMed.isUnitOnly || restockMed.unitsPerBox === 1);
+    const unitsAdded = restockByUnit ? restockBoxes : restockBoxes * restockMed.unitsPerBox;
+    const newTotalUnits = restockMed.stockUnits + unitsAdded;
+    const newStockBoxes = isMedUnitOnly ? newTotalUnits : Math.floor(newTotalUnits / (restockMed.unitsPerBox || 1));
+
     const newBatch: Batch = {
       lotNumber: restockLot.trim(),
       expiryDate: restockExpiry,
@@ -493,13 +514,13 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
 
     const updatedMed: Medication = {
       ...restockMed,
-      stockBoxes: restockMed.stockBoxes + restockBoxes,
-      stockUnits: restockMed.stockUnits + unitsAdded,
+      stockBoxes: newStockBoxes,
+      stockUnits: newTotalUnits,
       batches: [newBatch, ...restockMed.batches]
     };
 
     onUpdate(updatedMed);
-    showToast(`✅ Se sumaron ${restockBoxes} cajas a "${restockMed.name}" con lote ${restockLot}.`);
+    showToast(`✅ Se sumaron ${restockBoxes} ${restockByUnit ? 'unidades' : 'cajas'} a "${restockMed.name}" con lote ${restockLot}.`);
     setRestockMed(null);
   };
 
@@ -529,11 +550,20 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
       return;
     }
 
-    const priceBox = Number(formData.priceBox) || 0;
-    const units = Number(formData.unitsPerBox) || 1;
-    const priceUnit = Number(formData.priceUnit) || parseFloat((priceBox / units).toFixed(2));
-    const stockBoxes = Number(formData.stockBoxes) || 0;
-    const totalUnits = stockBoxes * units;
+    const isUnitOnly = Boolean(formData.isUnitOnly);
+    const units = isUnitOnly ? 1 : (Number(formData.unitsPerBox) || 1);
+    const priceBox = isUnitOnly
+      ? (Number(formData.priceUnit) || Number(formData.priceBox) || 0)
+      : (Number(formData.priceBox) || 0);
+    const priceUnit = isUnitOnly
+      ? priceBox
+      : (Number(formData.priceUnit) || parseFloat((priceBox / units).toFixed(2)));
+    const stockBoxes = isUnitOnly
+      ? (Number(formData.stockUnits) || Number(formData.stockBoxes) || 0)
+      : (Number(formData.stockBoxes) || 0);
+    const totalUnits = isUnitOnly
+      ? stockBoxes
+      : (Number(formData.stockUnits) || stockBoxes * units);
 
     let finalBatches = [...(formData.batches || [])];
     if (finalBatches.length > 0) {
@@ -549,21 +579,27 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
 
     // Check if adding and it already exists
     if (!editingMed && matchedExistingMedInModal) {
+      const existingLabel = matchedExistingMedInModal.isUnitOnly ? `${matchedExistingMedInModal.stockUnits} unidades` : `${matchedExistingMedInModal.stockBoxes} cajas`;
+      const addingLabel = isUnitOnly ? `${totalUnits} unidades` : `${stockBoxes} cajas`;
       const confirmAdd = confirm(
-        `"${matchedExistingMedInModal.name}" ya existe en el inventario con ${matchedExistingMedInModal.stockBoxes} cajas.\n\n¿Deseas sumar estas ${stockBoxes} cajas al producto existente en lugar de duplicarlo?`
+        `"${matchedExistingMedInModal.name}" ya existe en el inventario con ${existingLabel}.\n\n¿Deseas sumar estas ${addingLabel} al producto existente en lugar de duplicarlo?`
       );
       if (confirmAdd) {
+        const newTotalUnits = matchedExistingMedInModal.stockUnits + totalUnits;
+        const newBoxes = matchedExistingMedInModal.isUnitOnly
+          ? newTotalUnits
+          : Math.floor(newTotalUnits / (matchedExistingMedInModal.unitsPerBox || 1));
         const updatedMed: Medication = {
           ...matchedExistingMedInModal,
-          stockBoxes: matchedExistingMedInModal.stockBoxes + stockBoxes,
-          stockUnits: matchedExistingMedInModal.stockUnits + totalUnits,
+          stockBoxes: newBoxes,
+          stockUnits: newTotalUnits,
           batches: [
             { lotNumber: firstLot, expiryDate: firstExpiry, quantity: totalUnits },
             ...matchedExistingMedInModal.batches
           ]
         };
         onUpdate(updatedMed);
-        showToast(`✅ Se sumaron ${stockBoxes} cajas al producto existente "${matchedExistingMedInModal.name}".`);
+        showToast(`✅ Se sumaron ${addingLabel} al producto existente "${matchedExistingMedInModal.name}".`);
         if (addAnother) {
           resetModalForNext();
         } else {
@@ -574,7 +610,9 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
     }
 
     const costPriceBox = typeof formData.costPriceBox === 'number' ? formData.costPriceBox : parseFloat((priceBox * 0.7).toFixed(2));
-    const costPriceUnit = typeof formData.costPriceUnit === 'number' ? formData.costPriceUnit : parseFloat((costPriceBox / units).toFixed(2));
+    const costPriceUnit = isUnitOnly
+      ? costPriceBox
+      : (typeof formData.costPriceUnit === 'number' ? formData.costPriceUnit : parseFloat((costPriceBox / units).toFixed(2)));
     const profitMarginPercent = typeof formData.profitMarginPercent === 'number' 
       ? formData.profitMarginPercent 
       : (costPriceBox > 0 ? parseFloat((((priceBox - costPriceBox) / costPriceBox) * 100).toFixed(1)) : 40);
@@ -585,6 +623,7 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
       genericName: formData.genericName?.trim() || formData.name.trim(),
       laboratory: formData.laboratory?.trim() || 'Laboratorio Farmacéutico',
       description: formData.description?.trim() || 'Medicamento registrado.',
+      isUnitOnly,
       costPriceBox,
       costPriceUnit,
       profitMarginPercent,
@@ -617,25 +656,27 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
   };
 
   const resetModalForNext = () => {
+    const keepUnitOnly = Boolean(formData.isUnitOnly);
     setFormData({
       name: '',
       genericName: '',
       laboratory: 'Laboratorio Genérico',
       description: 'Medicamento registrado.',
+      isUnitOnly: keepUnitOnly,
       costPriceBox: 20,
-      costPriceUnit: 1.0,
+      costPriceUnit: keepUnitOnly ? 20 : 1.0,
       profitMarginPercent: 50,
       priceBox: 30,
-      priceUnit: 1.5,
-      unitsPerBox: 20,
+      priceUnit: keepUnitOnly ? 30 : 1.5,
+      unitsPerBox: keepUnitOnly ? 1 : 20,
       category: Category.OTHERS,
       imageUrl: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=400',
-      stockBoxes: 10,
-      stockUnits: 200,
+      stockBoxes: keepUnitOnly ? 20 : 10,
+      stockUnits: keepUnitOnly ? 20 : 200,
       isControlled: false,
       minStock: 5,
       maxStock: 50,
-      batches: [{ lotNumber: generateAutoLot(), expiryDate: getDatePlusYears(2), quantity: 200 }]
+      batches: [{ lotNumber: generateAutoLot(), expiryDate: getDatePlusYears(2), quantity: keepUnitOnly ? 20 : 200 }]
     });
   };
 
@@ -652,27 +693,40 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
       return;
     }
 
+    const isUnitOnly = Boolean(quickIsUnitOnly);
     const priceBox = Number(quickPriceBox) || 0;
-    const boxes = Number(quickBoxes) || 0;
-    const unitsPerBox = quickUnitsPerBox || 20;
-    const units = boxes * unitsPerBox;
-    const priceUnit = parseFloat((priceBox / unitsPerBox).toFixed(2));
+    const costPriceBox = Number(quickCostPriceBox) || parseFloat((priceBox * 0.7).toFixed(2));
+    const profitMarginPercent = Number(quickProfitPercent) || (costPriceBox > 0 ? parseFloat((((priceBox - costPriceBox) / costPriceBox) * 100).toFixed(1)) : 40);
+    const qtyEntered = Number(quickBoxes) || 0;
+    const unitsPerBox = isUnitOnly ? 1 : (quickUnitsPerBox || 20);
+    const units = isUnitOnly ? qtyEntered : qtyEntered * unitsPerBox;
+    const boxes = isUnitOnly ? qtyEntered : qtyEntered;
+    const priceUnit = isUnitOnly ? priceBox : parseFloat((priceBox / unitsPerBox).toFixed(2));
+    const costPriceUnit = isUnitOnly ? costPriceBox : parseFloat((costPriceBox / unitsPerBox).toFixed(2));
     const lot = quickLot.trim() || generateAutoLot();
     const expiry = quickExpiry || getDatePlusYears(2);
 
     // If matches existing medication, restock it directly
     if (matchedExistingMedInQuickBar) {
+      const newTotalUnits = matchedExistingMedInQuickBar.stockUnits + units;
+      const newStockBoxes = matchedExistingMedInQuickBar.isUnitOnly
+        ? newTotalUnits
+        : Math.floor(newTotalUnits / (matchedExistingMedInQuickBar.unitsPerBox || 1));
       const updatedMed: Medication = {
         ...matchedExistingMedInQuickBar,
-        stockBoxes: matchedExistingMedInQuickBar.stockBoxes + boxes,
-        stockUnits: matchedExistingMedInQuickBar.stockUnits + units,
+        stockBoxes: newStockBoxes,
+        stockUnits: newTotalUnits,
         batches: [
           { lotNumber: lot, expiryDate: expiry, quantity: units },
           ...matchedExistingMedInQuickBar.batches
         ]
       };
       onUpdate(updatedMed);
-      showToast(`⚡ Stock sumado a "${matchedExistingMedInQuickBar.name}": +${boxes} cajas (${units} uds).`);
+      showToast(
+        isUnitOnly
+          ? `⚡ Stock sumado a "${matchedExistingMedInQuickBar.name}": +${units} unidades.`
+          : `⚡ Stock sumado a "${matchedExistingMedInQuickBar.name}": +${boxes} cajas (${units} uds).`
+      );
     } else {
       // Find preset if any
       const preset = COMMON_MEDICATIONS_PRESETS.find(p => p.name.toLowerCase() === quickName.trim().toLowerCase());
@@ -683,6 +737,10 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
         genericName: preset?.genericName || quickName.trim(),
         laboratory: preset?.laboratory || 'Laboratorio Farmacéutico',
         description: preset?.description || 'Ingreso rápido de almacén.',
+        isUnitOnly,
+        costPriceBox,
+        costPriceUnit,
+        profitMarginPercent,
         priceBox,
         priceUnit,
         unitsPerBox,
@@ -702,13 +760,13 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
         ]
       };
       onAdd(newMed);
-      showToast(`⚡ ¡Medicamento "${newMed.name}" ingresado al inventario con éxito!`);
+      showToast(`⚡ ¡Medicamento "${newMed.name}" ingresado (${isUnitOnly ? `${units} unidades` : `${boxes} cajas`}) con éxito!`);
     }
 
     // Reset quick bar inputs for next item
     setQuickName('');
     setQuickPriceBox(35);
-    setQuickBoxes(10);
+    setQuickBoxes(isUnitOnly ? 20 : 10);
     setQuickLot(generateAutoLot());
     setQuickExpiry(getDatePlusYears(2));
   };
@@ -814,11 +872,20 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                 )}
 
                 <button 
-                  onClick={openAddModal}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white p-2.5 md:px-5 md:py-2.5 rounded-xl font-black flex items-center justify-center gap-2 transition-all shadow-xl shadow-emerald-600/20 text-xs whitespace-nowrap active:scale-95"
+                  onClick={() => openAddModal(false)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white p-2.5 md:px-4 md:py-2.5 rounded-xl font-black flex items-center justify-center gap-1.5 transition-all shadow-lg shadow-emerald-600/20 text-xs whitespace-nowrap active:scale-95"
                 >
-                  <Plus className="w-4 h-4" /> 
-                  <span>+ Agregar Medicamento</span>
+                  <Package className="w-4 h-4" /> 
+                  <span>+ Por Caja</span>
+                </button>
+
+                <button 
+                  onClick={() => openAddModal(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white p-2.5 md:px-4 md:py-2.5 rounded-xl font-black flex items-center justify-center gap-1.5 transition-all shadow-lg shadow-blue-600/20 text-xs whitespace-nowrap active:scale-95"
+                  title="Registrar productos comprados por unidad suelta (Ej: 8 jarabes, frascos, cremas sin caja)"
+                >
+                  <Pill className="w-4 h-4" /> 
+                  <span>+ Por Unidad (Ej: Jarabes)</span>
                 </button>
               </div>
             )}
@@ -828,7 +895,7 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
         {/* BARRA DE ENTRADA RÁPIDA (CARGA EXPRESS ULTRA SENCILLA) */}
         {canManageInventory && showQuickBar && (
           <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-slate-50 border border-emerald-200/80 rounded-2xl p-3.5 md:p-4 shadow-sm animate-in fade-in duration-300">
-            <div className="flex items-center justify-between mb-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
               <div className="flex items-center gap-2">
                 <span className="p-1 bg-emerald-600 text-white rounded-lg">
                   <Zap className="w-3.5 h-3.5 fill-white" />
@@ -836,30 +903,70 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                 <span className="text-xs font-black text-slate-800 uppercase tracking-wider">
                   Carga Rápida de Medicamentos (En 1 Clic)
                 </span>
-                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full hidden sm:inline">
-                  Ideal para ingresar stock en segundos
-                </span>
               </div>
-              <button 
-                onClick={() => setShowQuickBar(false)} 
-                className="text-slate-400 hover:text-slate-600 p-1"
-                title="Ocultar barra rápida"
-              >
-                <ChevronUp className="w-4 h-4" />
-              </button>
+
+              <div className="flex items-center gap-2 ml-auto">
+                {/* Selector Por Caja vs Solo Unidades */}
+                <div className="flex items-center bg-white border border-emerald-200 rounded-xl p-0.5 shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickIsUnitOnly(false);
+                      if (quickUnitsPerBox === 1) setQuickUnitsPerBox(20);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 ${
+                      !quickIsUnitOnly
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Package className="w-3 h-3" />
+                    <span>Por Caja (Uds x Caja)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickIsUnitOnly(true);
+                      setQuickUnitsPerBox(1);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 ${
+                      quickIsUnitOnly
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Pill className="w-3 h-3" />
+                    <span>Solo Unidades (Ej: Jarabe)</span>
+                  </button>
+                </div>
+
+                <button 
+                  onClick={() => setShowQuickBar(false)} 
+                  className="text-slate-400 hover:text-slate-600 p-1"
+                  title="Ocultar barra rápida"
+                >
+                  <ChevronUp className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             <form onSubmit={handleQuickBarSubmit} className="space-y-2.5">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-2">
                 {/* 1. Medication Name / Search Autocomplete */}
-                <div className="relative md:col-span-4">
+                <div className="relative md:col-span-3">
                   <input
                     type="text"
-                    placeholder="Nombre o seleccionar medicamento..."
+                    placeholder={quickIsUnitOnly ? "Ej: Ambroxol Jarabe (Compré por unidad)..." : "Nombre o seleccionar medicamento..."}
                     value={quickName}
                     onChange={(e) => {
-                      setQuickName(e.target.value);
+                      const val = e.target.value;
+                      setQuickName(val);
                       setQuickSuggestionsOpen(true);
+                      if (isLikelyUnitOnlyName(val) && !quickIsUnitOnly) {
+                        setQuickIsUnitOnly(true);
+                        setQuickUnitsPerBox(1);
+                        if (quickBoxes === 10) setQuickBoxes(8);
+                      }
                     }}
                     onFocus={() => setQuickSuggestionsOpen(true)}
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
@@ -892,7 +999,7 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                             <span className="text-[10px] text-slate-400 ml-1.5 font-medium">{preset.genericName}</span>
                           </div>
                           <span className="text-[10px] font-black text-emerald-700 bg-emerald-100/60 px-1.5 py-0.5 rounded">
-                            {currencySymbol} {preset.priceBox}
+                            {currencySymbol} {preset.priceBox} {preset.isUnitOnly ? '/ ud' : '/ caja'}
                           </span>
                         </button>
                       ))}
@@ -900,11 +1007,11 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                   )}
                 </div>
 
-                {/* 2. Cost price per box */}
+                {/* 2. Cost price (per box or per unit) */}
                 <div className="md:col-span-2">
                   <div className="relative">
                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400">
-                      Costo:
+                      {quickIsUnitOnly ? 'Costo Ud:' : 'Costo:'}
                     </span>
                     <input
                       type="number"
@@ -918,8 +1025,8 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                           setQuickPriceBox(parseFloat((cost * (1 + quickProfitPercent / 100)).toFixed(2)));
                         }
                       }}
-                      className="w-full pl-11 pr-2 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
-                      title="Precio de compra o costo al proveedor por caja"
+                      className="w-full pl-14 pr-2 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
+                      title={quickIsUnitOnly ? "Precio de costo por unidad" : "Precio de compra o costo al proveedor por caja"}
                     />
                   </div>
                 </div>
@@ -949,11 +1056,11 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                   </div>
                 </div>
 
-                {/* 4. Sale price per box (editable directly) */}
+                {/* 4. Sale price (per box or per unit) */}
                 <div className="md:col-span-2">
                   <div className="relative">
-                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400">
-                      Venta:
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-500">
+                      {quickIsUnitOnly ? 'Precio Ud:' : 'Venta:'}
                     </span>
                     <input
                       type="number"
@@ -967,54 +1074,37 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                           setQuickProfitPercent(parseFloat((((p - quickCostPriceBox) / quickCostPriceBox) * 100).toFixed(1)));
                         }
                       }}
-                      className="w-full pl-11 pr-2 py-2 bg-emerald-50/70 border border-emerald-400 rounded-xl text-xs font-black text-emerald-900 outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
-                      title="Precio de venta por caja (se calcula con el margen o puedes cambiarlo directamente)"
+                      className="w-full pl-14 pr-2 py-2 bg-emerald-50/70 border border-emerald-400 rounded-xl text-xs font-black text-emerald-900 outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
+                      title={quickIsUnitOnly ? "Precio de venta por unidad en específico" : "Precio de venta por caja"}
                     />
                   </div>
                 </div>
 
-                {/* 5. Number of boxes */}
+                {/* 5. Number of boxes OR units */}
                 <div className="md:col-span-1">
                   <div className="relative">
                     <input
                       type="number"
                       min="1"
-                      placeholder="Cajas"
+                      placeholder={quickIsUnitOnly ? "Unidades" : "Cajas"}
                       value={quickBoxes}
                       onChange={(e) => setQuickBoxes(e.target.value === '' ? '' : parseInt(e.target.value))}
-                      className="w-full px-2 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm text-center"
-                      title="Cantidad de cajas que ingresan"
+                      className={`w-full px-2 py-2 bg-white border rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 shadow-sm text-center ${
+                        quickIsUnitOnly ? 'border-blue-400 focus:ring-blue-500' : 'border-slate-300 focus:ring-emerald-500'
+                      }`}
+                      title={quickIsUnitOnly ? "Cantidad de unidades individuales que ingresan (ej: 20 unidades)" : "Cantidad de cajas que ingresan"}
                     />
+                    <span className="block text-[8px] font-black uppercase text-center text-slate-400 mt-0.5">
+                      {quickIsUnitOnly ? 'Unidades' : 'Cajas'}
+                    </span>
                   </div>
                 </div>
 
-                {/* 4. Lot number */}
-                <div className="md:col-span-2">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="N° Lote"
-                      value={quickLot}
-                      onChange={(e) => setQuickLot(e.target.value)}
-                      className="w-full pl-3 pr-7 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
-                      title="Número de Lote"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setQuickLot(generateAutoLot())}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600"
-                      title="Generar otro código de lote aleatorio"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* 5. Submit Button */}
+                {/* 6. Submit Button */}
                 <div className="md:col-span-2">
                   <button
                     type="submit"
-                    className="w-full h-full py-2 px-3 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all"
+                    className="w-full h-[34px] py-2 px-3 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-all"
                   >
                     <Plus className="w-3.5 h-3.5 text-emerald-400" />
                     <span>{matchedExistingMedInQuickBar ? 'Sumar Stock' : 'Ingresar'}</span>
@@ -1022,12 +1112,12 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                 </div>
               </div>
 
-              {/* Bottom Quick Row: Shortcut tags & Expiry buttons */}
+              {/* Bottom Quick Row: Shortcut tags, Uds/Caja or Lot & Expiry buttons */}
               <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px]">
                 {/* Popular pills shortcuts */}
                 <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
                   <span className="text-[10px] font-bold text-slate-500 whitespace-nowrap">Comunes:</span>
-                  {['Paracetamol 500mg', 'Ibuprofeno 600mg', 'Amoxicilina 500mg', 'Omeprazol 20mg', 'Azitromicina 500mg', 'Vitamina C'].map((medName) => (
+                  {['Ambroxol Jarabe 120ml', 'Ibuprofeno Jarabe Pediátrico 100ml', 'Paracetamol 500mg', 'Ibuprofeno 600mg', 'Amoxicilina 500mg', 'Omeprazol 20mg'].map((medName) => (
                     <button
                       key={medName}
                       type="button"
@@ -1042,8 +1132,29 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                   ))}
                 </div>
 
-                {/* Quick Expiry Shortcuts */}
-                <div className="flex items-center gap-1.5 ml-auto">
+                {/* Quick Lot & Expiry Shortcuts */}
+                <div className="flex items-center gap-1.5 ml-auto flex-wrap">
+                  {!quickIsUnitOnly && (
+                    <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-0.5">
+                      <span className="text-[10px] font-bold text-slate-500">Uds/Caja:</span>
+                      <input
+                        type="number"
+                        min="1"
+                        value={quickUnitsPerBox}
+                        onChange={(e) => setQuickUnitsPerBox(parseInt(e.target.value) || 1)}
+                        className="w-10 text-[10px] font-black text-emerald-700 outline-none text-center"
+                      />
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-0.5">
+                    <span className="text-[10px] font-bold text-slate-500">Lote:</span>
+                    <input
+                      type="text"
+                      value={quickLot}
+                      onChange={(e) => setQuickLot(e.target.value)}
+                      className="w-20 text-[10px] font-mono font-bold text-slate-700 outline-none"
+                    />
+                  </div>
                   <span className="text-[10px] font-bold text-slate-500">Vence:</span>
                   <button
                     type="button"
@@ -1075,7 +1186,7 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
 
               {matchedExistingMedInQuickBar && (
                 <div className="p-2 bg-emerald-100/70 border border-emerald-300 rounded-xl text-xs text-emerald-900 font-bold flex items-center justify-between">
-                  <span>💡 "{matchedExistingMedInQuickBar.name}" ya existe (Stock actual: {matchedExistingMedInQuickBar.stockBoxes} cajas). Al ingresar, se sumará el stock sin duplicar.</span>
+                  <span>💡 "{matchedExistingMedInQuickBar.name}" ya existe (Stock actual: {matchedExistingMedInQuickBar.isUnitOnly ? `${matchedExistingMedInQuickBar.stockUnits} unidades` : `${matchedExistingMedInQuickBar.stockBoxes} cajas`}). Al ingresar, se sumará el stock sin duplicar.</span>
                 </div>
               )}
             </form>
@@ -1331,32 +1442,46 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                   {/* Middle: Prices & Stock */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-6 bg-slate-50 md:bg-transparent p-2.5 md:p-0 rounded-xl border border-slate-100 md:border-0 text-left md:text-right shrink-0">
                     <div>
-                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Precio Caja</span>
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">
+                        {med.isUnitOnly || med.unitsPerBox === 1 ? 'Precio Unidad' : 'Precio Caja'}
+                      </span>
                       <span className="text-sm font-black text-slate-900">
-                        {currencySymbol} {med.priceBox.toFixed(2)}
+                        {currencySymbol} {(med.isUnitOnly || med.unitsPerBox === 1 ? med.priceUnit : med.priceBox).toFixed(2)}
                       </span>
-                      <span className="text-[9px] font-semibold text-slate-400 block">
-                        Uds: {currencySymbol} {med.priceUnit.toFixed(2)}
-                      </span>
+                      {med.isUnitOnly || med.unitsPerBox === 1 ? (
+                        <span className="text-[9px] font-bold text-blue-600 block">
+                          Precio por unidad
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-semibold text-slate-400 block">
+                          Uds: {currencySymbol} {med.priceUnit.toFixed(2)}
+                        </span>
+                      )}
                     </div>
 
                     <div>
                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Stock Actual</span>
                       <div className="flex items-center md:justify-end gap-1.5">
                         <span className={`text-sm font-black ${isUnderMin ? 'text-rose-600' : 'text-slate-800'}`}>
-                          {med.stockBoxes} Cajas
+                          {med.isUnitOnly || med.unitsPerBox === 1 ? `${med.stockUnits} Unidades` : `${med.stockBoxes} Cajas`}
                         </span>
                       </div>
                       <span className="text-[9px] font-bold text-slate-400 block">
-                        ({med.stockUnits} unidades)
+                        {med.isUnitOnly || med.unitsPerBox === 1 ? '(Unidades individuales)' : `(${med.stockUnits} unidades)`}
                       </span>
                     </div>
 
                     <div className="col-span-2 sm:col-span-1 flex flex-col justify-center">
                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block">Empaque</span>
-                      <span className="text-xs font-bold text-slate-600">
-                        {med.unitsPerBox} uds / caja
-                      </span>
+                      {med.isUnitOnly || med.unitsPerBox === 1 ? (
+                        <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200 inline-block w-fit md:ml-auto">
+                          Solo Unidades
+                        </span>
+                      ) : (
+                        <span className="text-xs font-bold text-slate-600">
+                          {med.unitsPerBox} uds / caja
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -1547,36 +1672,92 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
 
               {/* Form Body */}
               <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 no-scrollbar">
+                {/* SELECTOR PRINCIPAL SIEMPRE VISIBLE ARRIBA EN AMBOS MODOS (CAJA vs UNIDAD SUELTA / JARABE) */}
+                <div className="bg-slate-900 text-white p-3.5 rounded-2xl shadow-md space-y-2.5 border border-slate-700">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      ¿Cómo compraste este producto? (Elige una opción) *
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/10 text-slate-200">
+                      {formData.isUnitOnly ? 'Modo: Solo por Unidad (Sin Caja)' : 'Modo: Por Caja con Unidades'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const units = formData.unitsPerBox && formData.unitsPerBox > 1 ? formData.unitsPerBox : 20;
+                        const boxes = formData.stockBoxes || 10;
+                        const pb = formData.priceBox || 30;
+                        const cb = formData.costPriceBox || 20;
+                        setFormData({
+                          ...formData,
+                          isUnitOnly: false,
+                          unitsPerBox: units,
+                          stockBoxes: boxes,
+                          stockUnits: boxes * units,
+                          priceUnit: parseFloat((pb / units).toFixed(2)),
+                          costPriceUnit: parseFloat((cb / units).toFixed(2))
+                        });
+                      }}
+                      className={`p-3 rounded-xl border-2 text-left transition-all flex items-center gap-3 ${
+                        !formData.isUnitOnly
+                          ? 'bg-emerald-600 border-emerald-400 text-white shadow-lg'
+                          : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                      }`}
+                    >
+                      <div className={`p-2 rounded-lg ${!formData.isUnitOnly ? 'bg-white/20 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                        <Package className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-black">📦 Compré por CAJA</div>
+                        <div className="text-[10px] opacity-85 font-medium">Viene en cajas con varias unidades adentro</div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const currentUnits = formData.isUnitOnly ? (formData.stockUnits || 8) : 8;
+                        const unitPrice = formData.priceBox || formData.priceUnit || 25;
+                        const unitCost = formData.costPriceBox || formData.costPriceUnit || 18;
+                        setFormData({
+                          ...formData,
+                          isUnitOnly: true,
+                          unitsPerBox: 1,
+                          stockBoxes: currentUnits,
+                          stockUnits: currentUnits,
+                          priceBox: unitPrice,
+                          priceUnit: unitPrice,
+                          costPriceBox: unitCost,
+                          costPriceUnit: unitCost
+                        });
+                      }}
+                      className={`p-3 rounded-xl border-2 text-left transition-all flex items-center gap-3 ${
+                        formData.isUnitOnly
+                          ? 'bg-blue-600 border-blue-400 text-white shadow-lg'
+                          : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+                      }`}
+                    >
+                      <div className={`p-2 rounded-lg ${formData.isUnitOnly ? 'bg-white/20 text-white' : 'bg-slate-700 text-slate-400'}`}>
+                        <Pill className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-black">🧪 Compré por UNIDAD (Sin Caja)</div>
+                        <div className="text-[10px] opacity-85 font-medium">Ej: Compré 8 jarabes, frascos o unidades sueltas</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
                 {/* MODO RÁPIDO: ULTRA SENCILLO Y ÁGIL */}
                 {modalMode === 'QUICK' && (
                   <div className="space-y-4">
-                    {/* Quick presets pills */}
-                    <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
-                          <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                          Medicamentos Populares (Clic para auto-llenar)
-                        </span>
-                        <span className="text-[9px] font-bold text-emerald-600">Auto-completa datos</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {COMMON_MEDICATIONS_PRESETS.slice(0, 10).map((preset, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => applyPresetToModal(preset)}
-                            className="px-2.5 py-1 bg-white hover:bg-emerald-600 hover:text-white border border-emerald-200 rounded-xl text-[11px] font-bold text-slate-700 shadow-sm transition-all"
-                          >
-                            {preset.name}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
                     {/* Step 1: Drug Name */}
                     <div className="space-y-1.5">
                       <label className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center justify-between">
-                        <span>1. Nombre del Medicamento *</span>
+                        <span>1. Nombre del Producto / Medicamento *</span>
                         {formData.name && (
                           <span className="text-[10px] font-bold text-emerald-600 lowercase">
                             genérico: {formData.genericName || formData.name}
@@ -1588,243 +1769,353 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                           type="text"
                           required
                           value={formData.name || ''}
-                          onChange={(e) => setFormData({ 
-                            ...formData, 
-                            name: e.target.value,
-                            genericName: formData.genericName || e.target.value 
-                          })}
-                          placeholder="Ej: Paracetamol 500mg, Amoxicilina 500mg..."
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const autoUnit = isLikelyUnitOnlyName(val);
+                            setFormData({ 
+                              ...formData, 
+                              name: val,
+                              genericName: formData.genericName || val,
+                              ...(autoUnit && !formData.isUnitOnly ? {
+                                isUnitOnly: true,
+                                unitsPerBox: 1,
+                                stockBoxes: 8,
+                                stockUnits: 8,
+                                priceUnit: formData.priceBox || 25,
+                                costPriceUnit: formData.costPriceBox || 18
+                              } : {})
+                            });
+                          }}
+                          placeholder={formData.isUnitOnly ? "Ej: Ambroxol Jarabe 120ml, Ibuprofeno Suspensión..." : "Ej: Paracetamol 500mg, Amoxicilina 500mg..."}
                           className="w-full px-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white shadow-sm"
                         />
                       </div>
 
                       {matchedExistingMedInModal && (
                         <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 font-medium flex items-center justify-between">
-                          <span>💡 Ya existe en inventario ({matchedExistingMedInModal.stockBoxes} cajas). Se sumará a este producto.</span>
+                          <span>💡 Ya existe en inventario ({matchedExistingMedInModal.isUnitOnly ? `${matchedExistingMedInModal.stockUnits} unidades` : `${matchedExistingMedInModal.stockBoxes} cajas`}). Se sumará a este producto.</span>
                         </div>
                       )}
                     </div>
 
-                    {/* Step 2: Costo de Compra, Margen de Ganancia y Precio de Venta */}
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3.5 shadow-sm">
+                    {/* Step 2: Cantidad Comprada, Costo y Precio de Venta */}
+                    <div className={`p-4 rounded-2xl border space-y-3.5 shadow-sm ${formData.isUnitOnly ? 'bg-blue-50/40 border-blue-200' : 'bg-slate-50 border-slate-200'}`}>
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                           <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
-                          Costo de Compra, Margen de Ganancia y Precio de Venta *
-                        </span>
-                        <span className="text-[10px] text-emerald-700 font-black bg-emerald-100/70 px-2 py-0.5 rounded-full flex items-center gap-1">
-                          <Sparkles className="w-3 h-3" />
-                          Cálculo Automático
+                          {formData.isUnitOnly
+                            ? '2. Cantidad de Unidades Compradas (Sin Caja) y Precio por Unidad *'
+                            : '2. Cantidad de Cajas, Unidades por Caja y Precios *'}
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        {/* 1. Costo de Compra al Proveedor */}
-                        <div>
-                          <label className="text-[10px] font-black text-slate-600 uppercase tracking-wider block mb-1">
-                            Costo Compra x Caja ({currencySymbol}) *
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              step="0.1"
-                              min="0"
-                              placeholder="0.00"
-                              required
-                              value={formData.costPriceBox ?? ''}
-                              onChange={(e) => {
-                                const cost = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                                const units = formData.unitsPerBox || 20;
-                                const profit = formData.profitMarginPercent ?? 40;
-                                const newPriceBox = parseFloat((cost * (1 + profit / 100)).toFixed(2));
-                                setFormData({
-                                  ...formData,
-                                  costPriceBox: cost,
-                                  costPriceUnit: parseFloat((cost / units).toFixed(2)),
-                                  priceBox: newPriceBox,
-                                  priceUnit: parseFloat((newPriceBox / units).toFixed(2))
-                                });
-                              }}
-                              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
-                              title="Precio que pagas al proveedor o laboratorio"
-                            />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
-                              caja
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-slate-400 font-medium mt-1">
-                            Costo ud: {currencySymbol}{((formData.costPriceBox || 0) / (formData.unitsPerBox || 20)).toFixed(2)}
-                          </p>
-                        </div>
-
-                        {/* 2. Porcentaje de Ganancia Deseada (%) */}
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">
-                              % Ganancia Deseada *
+                      {/* SI COMPRÓ POR UNIDAD (EJ: 8 JARABES): Poner primero la cantidad de unidades y luego costo/precio unitario */}
+                      {formData.isUnitOnly ? (
+                        <div className="space-y-3">
+                          <div className="bg-white p-3 rounded-xl border-2 border-blue-400 shadow-sm">
+                            <label className="text-xs font-black text-blue-800 uppercase tracking-wider block mb-1">
+                              ¿Cuántas Unidades Compraste? (Ej: 8 jarabes / unidades) *
                             </label>
-                          </div>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              step="1"
-                              placeholder="40"
-                              required
-                              value={formData.profitMarginPercent ?? ''}
-                              onChange={(e) => {
-                                const profit = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                                const cost = formData.costPriceBox || 0;
-                                const units = formData.unitsPerBox || 20;
-                                const newPriceBox = parseFloat((cost * (1 + profit / 100)).toFixed(2));
-                                setFormData({
-                                  ...formData,
-                                  profitMarginPercent: profit,
-                                  priceBox: newPriceBox,
-                                  priceUnit: parseFloat((newPriceBox / units).toFixed(2))
-                                });
-                              }}
-                              className="w-full pl-3 pr-7 py-2 bg-emerald-50/50 border border-emerald-300 rounded-xl text-sm font-black text-emerald-900 outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
-                              title="Porcentaje de ganancia que deseas ganar sobre el costo"
-                            />
-                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-emerald-600">%</span>
-                          </div>
-                          
-                          {/* Botones rápidos de margen */}
-                          <div className="flex items-center gap-1 mt-1.5 overflow-x-auto scrollbar-hide">
-                            {[20, 30, 40, 50, 70, 100].map(pct => (
-                              <button
-                                key={pct}
-                                type="button"
-                                onClick={() => {
-                                  const cost = formData.costPriceBox || 0;
-                                  const units = formData.unitsPerBox || 20;
-                                  const newPriceBox = parseFloat((cost * (1 + pct / 100)).toFixed(2));
+                            <div className="relative">
+                              <input
+                                type="number"
+                                min="1"
+                                required
+                                value={formData.stockUnits ?? formData.stockBoxes ?? ''}
+                                onChange={(e) => {
+                                  const unitsQty = parseInt(e.target.value) || 0;
                                   setFormData({
                                     ...formData,
-                                    profitMarginPercent: pct,
-                                    priceBox: newPriceBox,
-                                    priceUnit: parseFloat((newPriceBox / units).toFixed(2))
+                                    unitsPerBox: 1,
+                                    stockBoxes: unitsQty,
+                                    stockUnits: unitsQty
                                   });
                                 }}
-                                className={`px-1.5 py-0.5 rounded text-[9px] font-black transition-all ${
-                                  formData.profitMarginPercent === pct
-                                    ? 'bg-emerald-600 text-white shadow-sm'
-                                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-emerald-50'
-                                }`}
-                              >
-                                +{pct}%
-                              </button>
-                            ))}
+                                className="w-full px-3 py-2.5 bg-blue-50/30 border border-blue-300 rounded-xl text-base font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="Ej: 8"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-blue-700">
+                                unidades (sin caja)
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                              <label className="text-[10px] font-black text-slate-600 uppercase tracking-wider block mb-1">
+                                Costo Compra x 1 Unidad ({currencySymbol}) *
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  placeholder="0.00"
+                                  required
+                                  value={formData.costPriceBox ?? ''}
+                                  onChange={(e) => {
+                                    const cost = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                    const profit = formData.profitMarginPercent ?? 40;
+                                    const newPrice = parseFloat((cost * (1 + profit / 100)).toFixed(2));
+                                    setFormData({
+                                      ...formData,
+                                      costPriceBox: cost,
+                                      costPriceUnit: cost,
+                                      priceBox: newPrice,
+                                      priceUnit: newPrice
+                                    });
+                                  }}
+                                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
+                                  c/u
+                                </span>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] font-black text-emerald-800 uppercase tracking-wider block mb-1">
+                                % Ganancia Deseada
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  step="1"
+                                  placeholder="40"
+                                  value={formData.profitMarginPercent ?? ''}
+                                  onChange={(e) => {
+                                    const profit = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                    const cost = formData.costPriceBox || 0;
+                                    const newPrice = parseFloat((cost * (1 + profit / 100)).toFixed(2));
+                                    setFormData({
+                                      ...formData,
+                                      profitMarginPercent: profit,
+                                      priceBox: newPrice,
+                                      priceUnit: newPrice
+                                    });
+                                  }}
+                                  className="w-full pl-3 pr-7 py-2 bg-emerald-50/50 border border-emerald-300 rounded-xl text-sm font-black text-emerald-900 outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
+                                />
+                                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-emerald-600">%</span>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] font-black text-blue-800 uppercase tracking-wider block mb-1">
+                                Precio Venta x 1 Unidad ({currencySymbol}) *
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0"
+                                  required
+                                  value={formData.priceBox || ''}
+                                  onChange={(e) => {
+                                    const pu = parseFloat(e.target.value) || 0;
+                                    const cost = formData.costPriceBox || 0;
+                                    const newProfit = cost > 0 ? parseFloat((((pu - cost) / cost) * 100).toFixed(1)) : 0;
+                                    setFormData({
+                                      ...formData,
+                                      priceBox: pu,
+                                      priceUnit: pu,
+                                      profitMarginPercent: newProfit
+                                    });
+                                  }}
+                                  className="w-full px-3 py-2 bg-white border-2 border-blue-400 rounded-xl text-sm font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-blue-600">
+                                  c/u
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-blue-950 font-bold bg-blue-100/80 px-3.5 py-2.5 rounded-xl border border-blue-300">
+                            <span>✅ Ingresarán: <strong>{formData.stockUnits || 0} unidades sueltas</strong> (A {currencySymbol}{(formData.priceUnit || formData.priceBox || 0).toFixed(2)} cada unidad)</span>
+                            <span>Total compra ({formData.stockUnits || 0} uds): <strong>{currencySymbol}{((formData.stockUnits || 0) * (formData.costPriceBox || 0)).toFixed(2)}</strong></span>
                           </div>
                         </div>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {/* 1. Costo de Compra al Proveedor por Caja */}
+                            <div>
+                              <label className="text-[10px] font-black text-slate-600 uppercase tracking-wider block mb-1">
+                                Costo Compra x Caja ({currencySymbol}) *
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  placeholder="0.00"
+                                  required
+                                  value={formData.costPriceBox ?? ''}
+                                  onChange={(e) => {
+                                    const cost = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                    const units = formData.unitsPerBox || 20;
+                                    const profit = formData.profitMarginPercent ?? 40;
+                                    const newPriceBox = parseFloat((cost * (1 + profit / 100)).toFixed(2));
+                                    setFormData({
+                                      ...formData,
+                                      costPriceBox: cost,
+                                      costPriceUnit: parseFloat((cost / units).toFixed(2)),
+                                      priceBox: newPriceBox,
+                                      priceUnit: parseFloat((newPriceBox / units).toFixed(2))
+                                    });
+                                  }}
+                                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
+                                  caja
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-400 font-medium mt-1">
+                                Costo ud: {currencySymbol}{((formData.costPriceBox || 0) / (formData.unitsPerBox || 20)).toFixed(2)}
+                              </p>
+                            </div>
 
-                        {/* 3. Precio de Venta al Público (Editable directamente!) */}
-                        <div>
-                          <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider block mb-1">
-                            Precio Venta x Caja ({currencySymbol}) *
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="number"
-                              step="0.5"
-                              min="0"
-                              required
-                              value={formData.priceBox || ''}
-                              onChange={(e) => {
-                                const priceBox = parseFloat(e.target.value) || 0;
-                                const units = formData.unitsPerBox || 20;
-                                const cost = formData.costPriceBox || 0;
-                                const newProfit = cost > 0 ? parseFloat((((priceBox - cost) / cost) * 100).toFixed(1)) : 0;
-                                setFormData({
-                                  ...formData,
-                                  priceBox,
-                                  profitMarginPercent: newProfit,
-                                  priceUnit: parseFloat((priceBox / units).toFixed(2))
-                                });
-                              }}
-                              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-black text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
-                              title="Puedes cambiar el precio de venta directamente y se recalcula el porcentaje de ganancia"
-                            />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
-                              caja
-                            </span>
+                            {/* 2. Porcentaje de Ganancia Deseada (%) */}
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="text-[10px] font-black text-emerald-800 uppercase tracking-wider">
+                                  % Ganancia Deseada *
+                                </label>
+                              </div>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  step="1"
+                                  placeholder="40"
+                                  required
+                                  value={formData.profitMarginPercent ?? ''}
+                                  onChange={(e) => {
+                                    const profit = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                    const cost = formData.costPriceBox || 0;
+                                    const units = formData.unitsPerBox || 20;
+                                    const newPriceBox = parseFloat((cost * (1 + profit / 100)).toFixed(2));
+                                    setFormData({
+                                      ...formData,
+                                      profitMarginPercent: profit,
+                                      priceBox: newPriceBox,
+                                      priceUnit: parseFloat((newPriceBox / units).toFixed(2))
+                                    });
+                                  }}
+                                  className="w-full pl-3 pr-7 py-2 bg-emerald-50/50 border border-emerald-300 rounded-xl text-sm font-black text-emerald-900 outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
+                                />
+                                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-emerald-600">%</span>
+                              </div>
+                            </div>
+
+                            {/* 3. Precio de Venta por Caja */}
+                            <div>
+                              <label className="text-[10px] font-black text-slate-700 uppercase tracking-wider block mb-1">
+                                Precio Venta x Caja ({currencySymbol}) *
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0"
+                                  required
+                                  value={formData.priceBox || ''}
+                                  onChange={(e) => {
+                                    const priceBox = parseFloat(e.target.value) || 0;
+                                    const units = formData.unitsPerBox || 20;
+                                    const cost = formData.costPriceBox || 0;
+                                    const newProfit = cost > 0 ? parseFloat((((priceBox - cost) / cost) * 100).toFixed(1)) : 0;
+                                    setFormData({
+                                      ...formData,
+                                      priceBox,
+                                      profitMarginPercent: newProfit,
+                                      priceUnit: parseFloat((priceBox / units).toFixed(2))
+                                    });
+                                  }}
+                                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-black text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500 shadow-sm"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
+                                  caja
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                          <p className="text-[10px] text-emerald-700 font-bold mt-1">
-                            Venta ud: {currencySymbol}{formData.priceUnit || 0}
-                          </p>
-                        </div>
-                      </div>
 
-                      {/* Resumen en vivo de ganancia neta en dinero */}
-                      <div className="bg-emerald-100/70 border border-emerald-200 rounded-xl p-2.5 flex items-center justify-between text-xs text-emerald-950 font-black">
-                        <div className="flex items-center gap-1.5">
-                          <TrendingUp className="w-4 h-4 text-emerald-700" />
-                          <span>Ganancia Neta en Dinero:</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="bg-white px-2 py-0.5 rounded-lg border border-emerald-300 text-emerald-800 shadow-sm">
-                            +{currencySymbol}{Math.max(0, (formData.priceBox || 0) - (formData.costPriceBox || 0)).toFixed(2)} / caja
-                          </span>
-                          <span className="bg-white px-2 py-0.5 rounded-lg border border-emerald-300 text-emerald-800 shadow-sm">
-                            +{currencySymbol}{Math.max(0, (formData.priceUnit || 0) - ((formData.costPriceBox || 0) / (formData.unitsPerBox || 20))).toFixed(2)} / ud
-                          </span>
-                        </div>
-                      </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-200">
+                            <div>
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">
+                                Cajas que Ingresan *
+                              </label>
+                              <input
+                                type="number"
+                                min="1"
+                                required
+                                value={formData.stockBoxes || ''}
+                                onChange={(e) => {
+                                  const boxes = parseInt(e.target.value) || 0;
+                                  const units = formData.unitsPerBox || 20;
+                                  setFormData({
+                                    ...formData,
+                                    stockBoxes: boxes,
+                                    stockUnits: boxes * units
+                                  });
+                                }}
+                                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
+                              />
+                            </div>
 
-                      {/* Cantidades y Embalaje */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200">
-                        <div>
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">
-                            Cajas que Ingresan *
-                          </label>
-                          <input
-                            type="number"
-                            min="1"
-                            required
-                            value={formData.stockBoxes || ''}
-                            onChange={(e) => {
-                              const boxes = parseInt(e.target.value) || 0;
-                              const units = formData.unitsPerBox || 20;
-                              setFormData({
-                                ...formData,
-                                stockBoxes: boxes,
-                                stockUnits: boxes * units
-                              });
-                            }}
-                            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
-                          />
-                        </div>
+                            <div>
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">
+                                Unidades por Caja
+                              </label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={formData.unitsPerBox || 20}
+                                onChange={(e) => {
+                                  const units = parseInt(e.target.value) || 1;
+                                  const priceBox = formData.priceBox || 0;
+                                  const boxes = formData.stockBoxes || 0;
+                                  const cost = formData.costPriceBox || 0;
+                                  setFormData({
+                                    ...formData,
+                                    unitsPerBox: units,
+                                    stockUnits: boxes * units,
+                                    costPriceUnit: parseFloat((cost / units).toFixed(2)),
+                                    priceUnit: parseFloat((priceBox / units).toFixed(2))
+                                  });
+                                }}
+                                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
+                              />
+                            </div>
 
-                        <div>
-                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">
-                            Unidades por Caja
-                          </label>
-                          <input
-                            type="number"
-                            min="1"
-                            value={formData.unitsPerBox || 20}
-                            onChange={(e) => {
-                              const units = parseInt(e.target.value) || 1;
-                              const priceBox = formData.priceBox || 0;
-                              const boxes = formData.stockBoxes || 0;
-                              const cost = formData.costPriceBox || 0;
-                              setFormData({
-                                ...formData,
-                                unitsPerBox: units,
-                                stockUnits: boxes * units,
-                                costPriceUnit: parseFloat((cost / units).toFixed(2)),
-                                priceUnit: parseFloat((priceBox / units).toFixed(2))
-                              });
-                            }}
-                            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
-                          />
-                        </div>
+                            <div>
+                              <label className="text-[10px] font-black text-emerald-700 uppercase tracking-wider block mb-1">
+                                Precio x Unidad Suelta ({currencySymbol})
+                              </label>
+                              <input
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                value={formData.priceUnit ?? ''}
+                                onChange={(e) => {
+                                  const pu = parseFloat(e.target.value) || 0;
+                                  setFormData({
+                                    ...formData,
+                                    priceUnit: pu
+                                  });
+                                }}
+                                className="w-full px-3 py-2 bg-emerald-50/60 border border-emerald-300 rounded-xl text-sm font-black text-emerald-900 outline-none focus:ring-2 focus:ring-emerald-500"
+                              />
+                            </div>
 
-                        <div className="sm:col-span-2 flex items-center justify-between text-xs text-slate-500 font-bold">
-                          <span>Total a ingresar: {(formData.stockBoxes || 0) * (formData.unitsPerBox || 20)} unidades</span>
-                          <span className="text-slate-600">Inversión compra: {currencySymbol}{((formData.stockBoxes || 0) * (formData.costPriceBox || 0)).toFixed(2)}</span>
-                        </div>
-                      </div>
+                            <div className="sm:col-span-3 flex items-center justify-between text-xs text-slate-500 font-bold">
+                              <span>Total a ingresar: {(formData.stockBoxes || 0) * (formData.unitsPerBox || 20)} unidades ({formData.stockBoxes || 0} cajas)</span>
+                              <span className="text-slate-600">Inversión compra: {currencySymbol}{((formData.stockBoxes || 0) * (formData.costPriceBox || 0)).toFixed(2)}</span>
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     {/* Step 3: Lote y Vencimiento Express (Requisitos Obligatorios Simplificados al Máximo) */}
@@ -1967,89 +2258,167 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                      <InputGroup 
-                        label={`Costo x Caja (${currencySymbol})`} 
-                        type="number" 
-                        step="0.1" 
-                        value={formData.costPriceBox?.toString() || ''} 
-                        onChange={v => {
-                          const cost = parseFloat(v) || 0;
-                          const profit = formData.profitMarginPercent ?? 40;
-                          const pb = parseFloat((cost * (1 + profit / 100)).toFixed(2));
-                          const u = formData.unitsPerBox || 1;
-                          setFormData({ 
-                            ...formData, 
-                            costPriceBox: cost, 
-                            costPriceUnit: parseFloat((cost / u).toFixed(2)),
-                            priceBox: pb, 
-                            priceUnit: parseFloat((pb / u).toFixed(2)) 
-                          });
-                        }} 
-                      />
-                      <InputGroup 
-                        label="% Ganancia" 
-                        type="number" 
-                        step="1" 
-                        value={formData.profitMarginPercent?.toString() || ''} 
-                        onChange={v => {
-                          const profit = parseFloat(v) || 0;
-                          const cost = formData.costPriceBox || 0;
-                          const pb = parseFloat((cost * (1 + profit / 100)).toFixed(2));
-                          const u = formData.unitsPerBox || 1;
-                          setFormData({ 
-                            ...formData, 
-                            profitMarginPercent: profit, 
-                            priceBox: pb, 
-                            priceUnit: parseFloat((pb / u).toFixed(2)) 
-                          });
-                        }} 
-                      />
-                      <InputGroup 
-                        label={`P. Venta x Caja (${currencySymbol})`} 
-                        type="number" 
-                        step="0.01" 
-                        value={formData.priceBox?.toString() || ''} 
-                        onChange={v => {
-                          const pb = parseFloat(v) || 0;
-                          const u = formData.unitsPerBox || 1;
-                          const cost = formData.costPriceBox || 0;
-                          const profit = cost > 0 ? parseFloat((((pb - cost) / cost) * 100).toFixed(1)) : 0;
-                          setFormData({ 
-                            ...formData, 
-                            priceBox: pb, 
-                            profitMarginPercent: profit,
-                            priceUnit: parseFloat((pb / u).toFixed(2)) 
-                          });
-                        }} 
-                      />
-                      <InputGroup 
-                        label="Uds x Caja" 
-                        type="number" 
-                        value={formData.unitsPerBox?.toString()} 
-                        onChange={v => {
-                          const u = parseInt(v) || 1;
-                          const pb = formData.priceBox || 0;
-                          const cost = formData.costPriceBox || 0;
-                          setFormData({ 
-                            ...formData, 
-                            unitsPerBox: u, 
-                            costPriceUnit: parseFloat((cost / u).toFixed(2)),
-                            priceUnit: parseFloat((pb / u).toFixed(2)) 
-                          });
-                        }} 
-                      />
-                      <InputGroup 
-                        label="Stock (Cajas)" 
-                        type="number" 
-                        value={formData.stockBoxes?.toString()} 
-                        onChange={v => {
-                          const b = parseInt(v) || 0;
-                          const u = formData.unitsPerBox || 1;
-                          setFormData({ ...formData, stockBoxes: b, stockUnits: b * u });
-                        }} 
-                      />
-                    </div>
+                    {formData.isUnitOnly ? (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-blue-50/40 p-3 rounded-xl border border-blue-200">
+                        <InputGroup 
+                          label="Unidades Compradas (Ej: 8)" 
+                          type="number" 
+                          value={(formData.stockUnits ?? formData.stockBoxes)?.toString()} 
+                          onChange={v => {
+                            const uQty = parseInt(v) || 0;
+                            setFormData({ ...formData, unitsPerBox: 1, stockBoxes: uQty, stockUnits: uQty });
+                          }} 
+                        />
+                        <InputGroup 
+                          label={`Costo x 1 Unidad (${currencySymbol})`} 
+                          type="number" 
+                          step="0.1" 
+                          value={formData.costPriceBox?.toString() || ''} 
+                          onChange={v => {
+                            const cost = parseFloat(v) || 0;
+                            const profit = formData.profitMarginPercent ?? 40;
+                            const pu = parseFloat((cost * (1 + profit / 100)).toFixed(2));
+                            setFormData({ 
+                              ...formData, 
+                              costPriceBox: cost, 
+                              costPriceUnit: cost,
+                              priceBox: pu, 
+                              priceUnit: pu 
+                            });
+                          }} 
+                        />
+                        <InputGroup 
+                          label="% Ganancia" 
+                          type="number" 
+                          step="1" 
+                          value={formData.profitMarginPercent?.toString() || ''} 
+                          onChange={v => {
+                            const profit = parseFloat(v) || 0;
+                            const cost = formData.costPriceBox || 0;
+                            const pu = parseFloat((cost * (1 + profit / 100)).toFixed(2));
+                            setFormData({ 
+                              ...formData, 
+                              profitMarginPercent: profit, 
+                              priceBox: pu, 
+                              priceUnit: pu 
+                            });
+                          }} 
+                        />
+                        <InputGroup 
+                          label={`Precio Venta x 1 Ud (${currencySymbol})`} 
+                          type="number" 
+                          step="0.01" 
+                          value={formData.priceBox?.toString() || ''} 
+                          onChange={v => {
+                            const pu = parseFloat(v) || 0;
+                            const cost = formData.costPriceBox || 0;
+                            const profit = cost > 0 ? parseFloat((((pu - cost) / cost) * 100).toFixed(1)) : 0;
+                            setFormData({ 
+                              ...formData, 
+                              priceBox: pu, 
+                              priceUnit: pu,
+                              profitMarginPercent: profit
+                            });
+                          }} 
+                        />
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                        <InputGroup 
+                          label={`Costo x Caja (${currencySymbol})`} 
+                          type="number" 
+                          step="0.1" 
+                          value={formData.costPriceBox?.toString() || ''} 
+                          onChange={v => {
+                            const cost = parseFloat(v) || 0;
+                            const profit = formData.profitMarginPercent ?? 40;
+                            const pb = parseFloat((cost * (1 + profit / 100)).toFixed(2));
+                            const u = formData.unitsPerBox || 1;
+                            setFormData({ 
+                              ...formData, 
+                              costPriceBox: cost, 
+                              costPriceUnit: parseFloat((cost / u).toFixed(2)),
+                              priceBox: pb, 
+                              priceUnit: parseFloat((pb / u).toFixed(2)) 
+                            });
+                          }} 
+                        />
+                        <InputGroup 
+                          label="% Ganancia" 
+                          type="number" 
+                          step="1" 
+                          value={formData.profitMarginPercent?.toString() || ''} 
+                          onChange={v => {
+                            const profit = parseFloat(v) || 0;
+                            const cost = formData.costPriceBox || 0;
+                            const pb = parseFloat((cost * (1 + profit / 100)).toFixed(2));
+                            const u = formData.unitsPerBox || 1;
+                            setFormData({ 
+                              ...formData, 
+                              profitMarginPercent: profit, 
+                              priceBox: pb, 
+                              priceUnit: parseFloat((pb / u).toFixed(2)) 
+                            });
+                          }} 
+                        />
+                        <InputGroup 
+                          label={`P. Venta x Caja (${currencySymbol})`} 
+                          type="number" 
+                          step="0.01" 
+                          value={formData.priceBox?.toString() || ''} 
+                          onChange={v => {
+                            const pb = parseFloat(v) || 0;
+                            const u = formData.unitsPerBox || 1;
+                            const cost = formData.costPriceBox || 0;
+                            const profit = cost > 0 ? parseFloat((((pb - cost) / cost) * 100).toFixed(1)) : 0;
+                            setFormData({ 
+                              ...formData, 
+                              priceBox: pb, 
+                              profitMarginPercent: profit,
+                              priceUnit: parseFloat((pb / u).toFixed(2)) 
+                            });
+                          }} 
+                        />
+                        <InputGroup 
+                          label="Uds x Caja" 
+                          type="number" 
+                          value={formData.unitsPerBox?.toString()} 
+                          onChange={v => {
+                            const u = parseInt(v) || 1;
+                            const pb = formData.priceBox || 0;
+                            const cost = formData.costPriceBox || 0;
+                            const boxes = formData.stockBoxes || 0;
+                            setFormData({ 
+                              ...formData, 
+                              unitsPerBox: u, 
+                              stockUnits: boxes * u,
+                              costPriceUnit: parseFloat((cost / u).toFixed(2)),
+                              priceUnit: parseFloat((pb / u).toFixed(2)) 
+                            });
+                          }} 
+                        />
+                        <InputGroup 
+                          label={`P. Venta x Ud (${currencySymbol})`} 
+                          type="number" 
+                          step="0.01"
+                          value={formData.priceUnit?.toString() || ''} 
+                          onChange={v => {
+                            const pu = parseFloat(v) || 0;
+                            setFormData({ ...formData, priceUnit: pu });
+                          }} 
+                        />
+                        <InputGroup 
+                          label="Stock (Cajas)" 
+                          type="number" 
+                          value={formData.stockBoxes?.toString()} 
+                          onChange={v => {
+                            const b = parseInt(v) || 0;
+                            const u = formData.unitsPerBox || 1;
+                            setFormData({ ...formData, stockBoxes: b, stockUnits: b * u });
+                          }} 
+                        />
+                      </div>
+                    )}
 
                     <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl border border-amber-200">
                       <input 
@@ -2152,12 +2521,40 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
               <div className="p-5 space-y-4">
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs flex justify-between">
                   <span className="text-slate-500 font-bold">Stock Actual:</span>
-                  <span className="font-black text-slate-800">{restockMed.stockBoxes} cajas ({restockMed.stockUnits} uds)</span>
+                  <span className="font-black text-slate-800">
+                    {restockMed.isUnitOnly || restockMed.unitsPerBox === 1
+                      ? `${restockMed.stockUnits} unidades`
+                      : `${restockMed.stockBoxes} cajas (${restockMed.stockUnits} uds)`}
+                  </span>
                 </div>
+
+                {/* Selector: Ingresar por Cajas vs Ingresar por Unidades Sueltas */}
+                {!(restockMed.isUnitOnly || restockMed.unitsPerBox === 1) && (
+                  <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setRestockByUnit(false)}
+                      className={`py-1.5 rounded-lg text-xs font-black transition-all ${
+                        !restockByUnit ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600'
+                      }`}
+                    >
+                      📦 Por Cajas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRestockByUnit(true)}
+                      className={`py-1.5 rounded-lg text-xs font-black transition-all ${
+                        restockByUnit ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600'
+                      }`}
+                    >
+                      🧪 Solo Unidades
+                    </button>
+                  </div>
+                )}
 
                 <div>
                   <label className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-1">
-                    Cajas Nuevas a Ingresar:
+                    {restockByUnit ? 'Unidades Nuevas a Ingresar:' : 'Cajas Nuevas a Ingresar:'}
                   </label>
                   <input
                     type="number"
@@ -2167,7 +2564,9 @@ const InventoryManager: React.FC<InventoryManagerProps> = ({
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                   <span className="text-[10px] text-emerald-600 font-bold mt-1 block">
-                    Equivale a +{restockBoxes * restockMed.unitsPerBox} unidades.
+                    {restockByUnit
+                      ? `Se sumarán +${restockBoxes} unidades individuales.`
+                      : `Equivale a +${restockBoxes * restockMed.unitsPerBox} unidades.`}
                   </span>
                 </div>
 

@@ -8,6 +8,11 @@ const CLOUD_API_BASE = 'https://api.restful-api.dev/objects';
 let pool: Pool | null = null;
 let supabaseClient: SupabaseClient | null = null;
 let inMemoryCache: Record<string, any> = {
+  medications: [],
+  customers: [],
+  sales: [],
+  suppliers: [],
+  purchases: [],
   staff: [
     {
       id: '1',

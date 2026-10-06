@@ -51,7 +51,39 @@ const DEFAULT_INITIAL_STAFF: User[] = [
   }
 ];
 
+const LEGACY_DEMO_MED_IDS = new Set(['1','2','3','4','5','6','7','8','9','10','11','12','13','14','15']);
+const LEGACY_DEMO_CUST_IDS = new Set(['C1','C2','C3','C4','C5','C6','C7','C8','C9','C10','C11','C12','C13','C14','C15']);
+const LEGACY_DEMO_SALE_IDS = new Set(['S1','S2','S3','S4','S5','S6','S7','S8','S9','S10','S11','S12','S13','S14','S15']);
+const LEGACY_DEMO_SUPP_IDS = new Set(['P1','P2','P3','P4','P5','P6','P7','P8','P9','P10','P11','P12','P13','P14','P15']);
+const LEGACY_DEMO_STAFF_IDS = new Set(['U2','U3','U4','U5','U6','U7','U8','U9','U10','U11','U12','U13','U14','U15']);
+
+const cleanDemoMeds = (list: Medication[]): Medication[] =>
+  Array.isArray(list) ? list.filter(m => m && !LEGACY_DEMO_MED_IDS.has(String(m.id))) : [];
+const cleanDemoCustomers = (list: Customer[]): Customer[] =>
+  Array.isArray(list) ? list.filter(c => c && !LEGACY_DEMO_CUST_IDS.has(String(c.id))) : [];
+const cleanDemoSales = (list: SaleRecord[]): SaleRecord[] =>
+  Array.isArray(list) ? list.filter(s => s && !LEGACY_DEMO_SALE_IDS.has(String(s.id))) : [];
+const cleanDemoSuppliers = (list: Supplier[]): Supplier[] =>
+  Array.isArray(list) ? list.filter(s => s && !LEGACY_DEMO_SUPP_IDS.has(String(s.id))) : [];
+const cleanDemoPurchases = (list: Purchase[]): Purchase[] =>
+  Array.isArray(list) ? list.filter(p => p && !LEGACY_DEMO_SUPP_IDS.has(String(p.id))) : [];
+const cleanDemoStaff = (list: User[]): User[] =>
+  Array.isArray(list) ? list.filter(u => u && !LEGACY_DEMO_STAFF_IDS.has(String(u.id))) : [];
+
 export const useFarmaData = () => {
+  // Limpieza automática definitiva de cualquier dato demo o residuo anterior en el navegador
+  try {
+    if (typeof window !== 'undefined' && localStorage.getItem('FARMA_CLEAN_SLATE_V5') !== 'true') {
+      localStorage.setItem('FARMA_MEDS', JSON.stringify([]));
+      localStorage.setItem('FARMA_CUSTOMERS', JSON.stringify([]));
+      localStorage.setItem('FARMA_SALES', JSON.stringify([]));
+      localStorage.setItem('FARMA_SUPPLIERS', JSON.stringify([]));
+      localStorage.setItem('FARMA_PURCHASES', JSON.stringify([]));
+      localStorage.setItem('FARMA_STAFF', JSON.stringify(DEFAULT_INITIAL_STAFF));
+      localStorage.setItem('FARMA_CLEAN_SLATE_V5', 'true');
+    }
+  } catch {}
+
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem('FARMA_USER');
@@ -87,7 +119,7 @@ export const useFarmaData = () => {
 
   const sortAlphabetical = (list: Medication[]): Medication[] => {
     if (!Array.isArray(list)) return [];
-    return [...list]
+    return [...cleanDemoMeds(list)]
       .filter((m): m is Medication => Boolean(m && typeof m === 'object'))
       .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es', { sensitivity: 'base' }));
   };
@@ -98,7 +130,7 @@ export const useFarmaData = () => {
       if (saved !== null) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return sortAlphabetical(parsed);
+          return sortAlphabetical(cleanDemoMeds(parsed));
         }
       }
     } catch {}
@@ -110,7 +142,7 @@ export const useFarmaData = () => {
       const saved = localStorage.getItem('FARMA_CUSTOMERS');
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return cleanDemoCustomers(parsed);
       }
     } catch {}
     return [];
@@ -120,7 +152,7 @@ export const useFarmaData = () => {
     try {
       const saved = localStorage.getItem('FARMA_STAFF');
       if (saved !== null) {
-        const parsed = JSON.parse(saved);
+        const parsed = cleanDemoStaff(JSON.parse(saved));
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {}
@@ -132,7 +164,7 @@ export const useFarmaData = () => {
       const saved = localStorage.getItem('FARMA_SALES');
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return cleanDemoSales(parsed);
       }
     } catch {}
     return [];
@@ -143,7 +175,7 @@ export const useFarmaData = () => {
       const saved = localStorage.getItem('FARMA_SUPPLIERS');
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return cleanDemoSuppliers(parsed);
       }
     } catch {}
     return [];
@@ -154,7 +186,7 @@ export const useFarmaData = () => {
       const saved = localStorage.getItem('FARMA_PURCHASES');
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return cleanDemoPurchases(parsed);
       }
     } catch {}
     return [];
@@ -331,29 +363,34 @@ export const useFarmaData = () => {
           case 'PROVIDE_SYNC': {
             if (msg.payload) {
               if (Array.isArray(msg.payload.staff) && msg.payload.staff.length > 0) {
-                setStaff(msg.payload.staff);
-                try { localStorage.setItem('FARMA_STAFF', JSON.stringify(msg.payload.staff)); } catch {}
+                const cleanedStaff = cleanDemoStaff(msg.payload.staff);
+                setStaff(cleanedStaff);
+                try { localStorage.setItem('FARMA_STAFF', JSON.stringify(cleanedStaff)); } catch {}
               }
-              if (Array.isArray(msg.payload.medications) && msg.payload.medications.length > 0) {
+              if (Array.isArray(msg.payload.medications)) {
                 const sorted = sortAlphabetical(msg.payload.medications);
                 setMedications(sorted);
                 try { localStorage.setItem('FARMA_MEDS', JSON.stringify(sorted)); } catch {}
               }
-              if (Array.isArray(msg.payload.customers) && msg.payload.customers.length > 0) {
-                setCustomers(msg.payload.customers);
-                try { localStorage.setItem('FARMA_CUSTOMERS', JSON.stringify(msg.payload.customers)); } catch {}
+              if (Array.isArray(msg.payload.customers)) {
+                const cleanedCust = cleanDemoCustomers(msg.payload.customers);
+                setCustomers(cleanedCust);
+                try { localStorage.setItem('FARMA_CUSTOMERS', JSON.stringify(cleanedCust)); } catch {}
               }
-              if (Array.isArray(msg.payload.sales) && msg.payload.sales.length > 0) {
-                setSales(msg.payload.sales);
-                try { localStorage.setItem('FARMA_SALES', JSON.stringify(msg.payload.sales)); } catch {}
+              if (Array.isArray(msg.payload.sales)) {
+                const cleanedSales = cleanDemoSales(msg.payload.sales);
+                setSales(cleanedSales);
+                try { localStorage.setItem('FARMA_SALES', JSON.stringify(cleanedSales)); } catch {}
               }
-              if (Array.isArray(msg.payload.purchases) && msg.payload.purchases.length > 0) {
-                setPurchases(msg.payload.purchases);
-                try { localStorage.setItem('FARMA_PURCHASES', JSON.stringify(msg.payload.purchases)); } catch {}
+              if (Array.isArray(msg.payload.purchases)) {
+                const cleanedPurchases = cleanDemoPurchases(msg.payload.purchases);
+                setPurchases(cleanedPurchases);
+                try { localStorage.setItem('FARMA_PURCHASES', JSON.stringify(cleanedPurchases)); } catch {}
               }
-              if (Array.isArray(msg.payload.suppliers) && msg.payload.suppliers.length > 0) {
-                setSuppliers(msg.payload.suppliers);
-                try { localStorage.setItem('FARMA_SUPPLIERS', JSON.stringify(msg.payload.suppliers)); } catch {}
+              if (Array.isArray(msg.payload.suppliers)) {
+                const cleanedSuppliers = cleanDemoSuppliers(msg.payload.suppliers);
+                setSuppliers(cleanedSuppliers);
+                try { localStorage.setItem('FARMA_SUPPLIERS', JSON.stringify(cleanedSuppliers)); } catch {}
               }
               if (msg.payload.pharmacyInfo) {
                 setPharmacyInfo(msg.payload.pharmacyInfo);
@@ -388,26 +425,43 @@ export const useFarmaData = () => {
   useEffect(() => {
     setIsSyncingWithCloud(true);
 
-    pullAllFromSupabase().then(res => {
+    const initCloud = async () => {
+      try {
+        if (typeof window !== 'undefined' && localStorage.getItem('FARMA_CLOUD_CLEANED_V5') !== 'true') {
+          localStorage.setItem('FARMA_CLOUD_CLEANED_V5', 'true');
+          await Promise.all([
+            pushCollectionToSupabase('medications', []),
+            pushCollectionToSupabase('customers', []),
+            pushCollectionToSupabase('sales', []),
+            pushCollectionToSupabase('suppliers', []),
+            pushCollectionToSupabase('purchases', [])
+          ]);
+          isInitialLoadedRef.current = true;
+          setIsSyncingWithCloud(false);
+          return;
+        }
+      } catch {}
+
+      pullAllFromSupabase().then(res => {
       if (res.success && res.data && Object.keys(res.data).length > 0) {
         isApplyingRemoteRef.current = true;
         if (res.data.medications && Array.isArray(res.data.medications)) {
           setMedications(sortAlphabetical(res.data.medications));
         }
         if (res.data.customers && Array.isArray(res.data.customers)) {
-          setCustomers(res.data.customers);
+          setCustomers(cleanDemoCustomers(res.data.customers));
         }
         if (res.data.sales && Array.isArray(res.data.sales)) {
-          setSales(res.data.sales);
+          setSales(cleanDemoSales(res.data.sales));
         }
         if (res.data.suppliers && Array.isArray(res.data.suppliers)) {
-          setSuppliers(res.data.suppliers);
+          setSuppliers(cleanDemoSuppliers(res.data.suppliers));
         }
         if (res.data.purchases && Array.isArray(res.data.purchases)) {
-          setPurchases(res.data.purchases);
+          setPurchases(cleanDemoPurchases(res.data.purchases));
         }
-        if (res.data.staff && Array.isArray(res.data.staff)) {
-          setStaff(res.data.staff);
+        if (res.data.staff && Array.isArray(res.data.staff) && res.data.staff.length > 0) {
+          setStaff(cleanDemoStaff(res.data.staff));
         }
         if (res.data.pharmacyInfo) {
           setPharmacyInfo(res.data.pharmacyInfo);
@@ -425,12 +479,15 @@ export const useFarmaData = () => {
       } else {
         isInitialLoadedRef.current = true;
       }
-    }).catch(err => {
-      console.warn('Error al sincronizar con la nube al iniciar:', err);
-      isInitialLoadedRef.current = true;
-    }).finally(() => {
-      setIsSyncingWithCloud(false);
-    });
+      }).catch(err => {
+        console.warn('Error al sincronizar con la nube al iniciar:', err);
+        isInitialLoadedRef.current = true;
+      }).finally(() => {
+        setIsSyncingWithCloud(false);
+      });
+    };
+
+    initCloud();
 
     const unsub = subscribeToRealtimeChanges(
       (collectionId, data) => {
@@ -438,15 +495,15 @@ export const useFarmaData = () => {
         if (collectionId === 'medications' && Array.isArray(data)) {
           setMedications(sortAlphabetical(data));
         } else if (collectionId === 'customers' && Array.isArray(data)) {
-          setCustomers(data);
+          setCustomers(cleanDemoCustomers(data));
         } else if (collectionId === 'sales' && Array.isArray(data)) {
-          setSales(data);
+          setSales(cleanDemoSales(data));
         } else if (collectionId === 'purchases' && Array.isArray(data)) {
-          setPurchases(data);
+          setPurchases(cleanDemoPurchases(data));
         } else if (collectionId === 'suppliers' && Array.isArray(data)) {
-          setSuppliers(data);
+          setSuppliers(cleanDemoSuppliers(data));
         } else if (collectionId === 'staff' && Array.isArray(data)) {
-          setStaff(data);
+          setStaff(cleanDemoStaff(data));
         } else if (collectionId === 'pharmacyInfo') {
           setPharmacyInfo(data);
         } else if (collectionId === 'discountPlans' && Array.isArray(data)) {
@@ -507,24 +564,27 @@ export const useFarmaData = () => {
         pullAllFromSupabase().then(res => {
           if (res.success && res.data) {
             if (res.data.staff && Array.isArray(res.data.staff) && res.data.staff.length > 0) {
+              const cleaned = cleanDemoStaff(res.data.staff);
               setStaff(prev => {
                 const s1 = JSON.stringify(prev);
-                const s2 = JSON.stringify(res.data!.staff);
-                return s1 !== s2 ? res.data!.staff : prev;
+                const s2 = JSON.stringify(cleaned);
+                return s1 !== s2 ? cleaned : prev;
               });
             }
             if (res.data.medications && Array.isArray(res.data.medications)) {
+              const cleaned = sortAlphabetical(res.data.medications);
               setMedications(prev => {
                 const s1 = JSON.stringify(prev);
-                const s2 = JSON.stringify(res.data!.medications);
-                return s1 !== s2 ? sortAlphabetical(res.data!.medications) : prev;
+                const s2 = JSON.stringify(cleaned);
+                return s1 !== s2 ? cleaned : prev;
               });
             }
             if (res.data.sales && Array.isArray(res.data.sales)) {
+              const cleaned = cleanDemoSales(res.data.sales);
               setSales(prev => {
                 const s1 = JSON.stringify(prev);
-                const s2 = JSON.stringify(res.data!.sales);
-                return s1 !== s2 ? res.data!.sales : prev;
+                const s2 = JSON.stringify(cleaned);
+                return s1 !== s2 ? cleaned : prev;
               });
             }
           }
@@ -702,7 +762,8 @@ export const useFarmaData = () => {
         });
 
         const totalUnits = newBatches.reduce((sum, b) => sum + b.quantity, 0);
-        const newStockBoxes = Math.floor(totalUnits / med.unitsPerBox);
+        const isUnitMed = Boolean(med.isUnitOnly || med.unitsPerBox === 1);
+        const newStockBoxes = isUnitMed ? totalUnits : Math.floor(totalUnits / (med.unitsPerBox || 1));
         const newStockUnits = totalUnits;
 
         return { 
@@ -731,8 +792,8 @@ export const useFarmaData = () => {
       if (item) {
         const newBatches = [...med.batches];
         const batchIdx = newBatches.findIndex(b => b.lotNumber === item.lotNumber);
-        
-        const addedUnits = item.quantity * med.unitsPerBox;
+        const isUnitMed = Boolean(med.isUnitOnly || med.unitsPerBox === 1);
+        const addedUnits = (item.isUnitPurchase || isUnitMed) ? item.quantity : item.quantity * (med.unitsPerBox || 1);
         
         if (batchIdx !== -1) {
           newBatches[batchIdx] = {
@@ -752,7 +813,7 @@ export const useFarmaData = () => {
         return {
           ...med,
           batches: newBatches,
-          stockBoxes: Math.floor(totalUnits / med.unitsPerBox),
+          stockBoxes: isUnitMed ? totalUnits : Math.floor(totalUnits / (med.unitsPerBox || 1)),
           stockUnits: totalUnits
         };
       }
@@ -814,10 +875,17 @@ export const useFarmaData = () => {
     setCustomers([]);
     setSales([]);
     setPurchases([]);
+    setSuppliers([]);
     localStorage.setItem('FARMA_MEDS', JSON.stringify([]));
     localStorage.setItem('FARMA_CUSTOMERS', JSON.stringify([]));
     localStorage.setItem('FARMA_SALES', JSON.stringify([]));
     localStorage.setItem('FARMA_PURCHASES', JSON.stringify([]));
+    localStorage.setItem('FARMA_SUPPLIERS', JSON.stringify([]));
+    pushCollectionToSupabase('medications', []);
+    pushCollectionToSupabase('customers', []);
+    pushCollectionToSupabase('sales', []);
+    pushCollectionToSupabase('purchases', []);
+    pushCollectionToSupabase('suppliers', []);
     broadcastSyncEvent('CLEAR_DEMO', {});
   };
 

@@ -42,7 +42,8 @@ const PurchasesManager: React.FC<PurchasesManagerProps> = ({
     quantity: 1,
     costPrice: 0,
     lotNumber: '',
-    expiryDate: ''
+    expiryDate: '',
+    isUnitPurchase: false
   });
 
   const handleAddItem = () => {
@@ -62,7 +63,8 @@ const PurchasesManager: React.FC<PurchasesManagerProps> = ({
       costPrice: newItem.costPrice || 0,
       lotNumber: newItem.lotNumber || '',
       expiryDate: newItem.expiryDate || '',
-      subtotal
+      subtotal,
+      isUnitPurchase: Boolean(newItem.isUnitPurchase || medication.isUnitOnly || medication.unitsPerBox === 1)
     };
 
     setNewPurchase(prev => ({
@@ -76,7 +78,8 @@ const PurchasesManager: React.FC<PurchasesManagerProps> = ({
       quantity: 1,
       costPrice: 0,
       lotNumber: '',
-      expiryDate: ''
+      expiryDate: '',
+      isUnitPurchase: false
     });
   };
 
@@ -350,21 +353,59 @@ const PurchasesManager: React.FC<PurchasesManagerProps> = ({
 
                 {/* Products Selector */}
                 <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4">
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Añadir Productos</h4>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Añadir Productos</h4>
+                    <div className="flex items-center bg-white border border-slate-200 rounded-xl p-0.5 shadow-sm">
+                      <button
+                        type="button"
+                        onClick={() => setNewItem({ ...newItem, isUnitPurchase: false })}
+                        className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all ${
+                          !newItem.isUnitPurchase ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        📦 Compra por Cajas
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewItem({ ...newItem, isUnitPurchase: true })}
+                        className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all ${
+                          newItem.isUnitPurchase ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        🧪 Solo Unidades (Ej: Jarabe / Sueltas)
+                      </button>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
                     <div className="col-span-1 md:col-span-2 space-y-1">
                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Medicamento</label>
                        <select 
                         value={newItem.medicationId}
-                        onChange={e => setNewItem({...newItem, medicationId: e.target.value})}
+                        onChange={e => {
+                          const medId = e.target.value;
+                          const med = medications.find(m => m.id === medId);
+                          const isUnit = Boolean(med?.isUnitOnly || med?.unitsPerBox === 1);
+                          setNewItem({
+                            ...newItem,
+                            medicationId: medId,
+                            isUnitPurchase: isUnit,
+                            costPrice: isUnit ? (med?.costPriceUnit || med?.costPriceBox || 0) : (med?.costPriceBox || 0)
+                          });
+                        }}
                         className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none"
                        >
                          <option value="">Seleccionar Medicamento</option>
-                         {medications.map(m => <option key={m.id} value={m.id}>{m.name} ({m.genericName})</option>)}
+                         {medications.map(m => (
+                           <option key={m.id} value={m.id}>
+                             {m.name} ({m.isUnitOnly || m.unitsPerBox === 1 ? 'Solo Unidades' : `${m.unitsPerBox} uds/caja`})
+                           </option>
+                         ))}
                        </select>
                     </div>
                     <div className="space-y-1">
-                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Cantidad (Cajas)</label>
+                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                         {newItem.isUnitPurchase ? 'Cantidad (Unidades)' : 'Cantidad (Cajas)'}
+                       </label>
                        <input 
                         type="number"
                         min="1"
@@ -374,10 +415,13 @@ const PurchasesManager: React.FC<PurchasesManagerProps> = ({
                        />
                     </div>
                     <div className="space-y-1">
-                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Costo Unitario (Caja)</label>
+                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                         {newItem.isUnitPurchase ? 'Costo por Unidad' : 'Costo por Caja'}
+                       </label>
                        <input 
                         type="number"
                         min="0"
+                        step="0.1"
                         value={newItem.costPrice}
                         onChange={e => setNewItem({...newItem, costPrice: parseFloat(e.target.value) || 0})}
                         className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none"
@@ -432,7 +476,9 @@ const PurchasesManager: React.FC<PurchasesManagerProps> = ({
                       {newPurchase.items?.map((item, idx) => (
                         <tr key={idx}>
                           <td className="px-4 py-3 text-xs">{item.medicationName}</td>
-                          <td className="px-4 py-3 text-xs text-center">{item.quantity}</td>
+                          <td className="px-4 py-3 text-xs text-center">
+                            {item.quantity} {item.isUnitPurchase ? 'uds' : 'cajas'}
+                          </td>
                           <td className="px-4 py-3 text-xs text-right">{currencySymbol} {item.costPrice}</td>
                           <td className="px-4 py-3 text-[10px] text-slate-500">
                              {item.lotNumber} <span className="opacity-50">/</span> {item.expiryDate}
@@ -548,7 +594,7 @@ const PurchasesManager: React.FC<PurchasesManagerProps> = ({
                                  </div>
                                  <div>
                                     <p className="text-xs font-black text-slate-800">{item.medicationName}</p>
-                                    <p className="text-[10px] text-slate-400 font-bold">Cant: {item.quantity} cajas | Lote: {item.lotNumber}</p>
+                                    <p className="text-[10px] text-slate-400 font-bold">Cant: {item.quantity} {item.isUnitPurchase ? 'unidades' : 'cajas'} | Lote: {item.lotNumber}</p>
                                  </div>
                               </div>
                               <p className="text-xs font-black text-blue-600">{currencySymbol} {item.subtotal}</p>

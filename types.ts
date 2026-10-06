@@ -103,6 +103,7 @@ export interface Medication {
   costPriceUnit?: number; // Precio de costo por unidad suelta
   profitMarginPercent?: number; // Porcentaje de ganancia (%)
   unitsPerBox: number;
+  isUnitOnly?: boolean; // Si es true, se maneja solo por unidades sueltas (ej. jarabes, frascos, unidades individuales sin caja)
   category: Category;
   imageUrl: string;
   stockBoxes: number;
@@ -205,6 +206,7 @@ export interface PurchaseItem {
   lotNumber: string;
   expiryDate: string;
   subtotal: number;
+  isUnitPurchase?: boolean;
 }
 
 export interface Purchase {
